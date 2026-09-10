@@ -32,6 +32,8 @@ Environment variables:
 
 - ``OTARI_POLICY_NAME`` (required): which policy to check against. With a repo's
   own ``.otari-gates.yml`` this is only the label recorded in history.
+- ``OTARI_URL``: base URL of the gateway to check against.
+- ``OTARI_API_KEY``: an ordinary Otari API key for that gateway.
 - ``OTARI_CLI_PATH`` (optional): override for a non-PATH ``otari`` install.
 - ``OTARI_POLICY_CHECK_MAX_ATTEMPTS`` (default ``3``): how many blocks one session
   may receive before the hook gives up and lets it finish.
@@ -40,10 +42,12 @@ Environment variables:
   as opposed to reporting non-compliant (exit code 1). ``open`` never blocks a
   session over a check that could not run; ``closed`` is hard enforcement.
 
-``otari policy check`` resolves the gateway URL and API key from the ``config.yml``
-it finds, normally the one ``otari serve`` was started with, so this hook passes
-none of that through. A missing env var or a missing ``otari`` binary is treated
-as "not set up yet": warn and exit 0.
+``otari policy check`` reads ``OTARI_URL`` and ``OTARI_API_KEY`` itself, so this
+hook passes none of that through; they only have to be set in the environment
+Claude Code runs from. With neither set it falls back to the ``config.yml`` it
+finds, normally the one ``otari serve`` was started with, which only works on the
+gateway's own machine. A missing ``OTARI_POLICY_NAME`` or a missing ``otari``
+binary is treated as "not set up yet": warn and exit 0.
 """
 
 from __future__ import annotations

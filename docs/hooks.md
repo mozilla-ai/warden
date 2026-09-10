@@ -35,9 +35,13 @@ the session's timeline in the dashboard can tell "converged" apart from
 is checked again like any other stop: the retry is the turn that needs verifying,
 and the attempt cap is what keeps the loop bounded.
 
-`otari policy check` reads the gateway URL and API key from the `config.yml` it
-finds, normally the one `otari serve` was started with, so run both from the same
-project directory. `--url` and `--api-key` override that.
+`otari policy check` (and `give-up`) finds the gateway through `--url`, which
+defaults to `OTARI_URL`, and authenticates with `--api-key`, which defaults to
+`OTARI_API_KEY`: an ordinary Otari API key, since the check route accepts one.
+Export both in the shell Claude Code runs from and the hook works from any
+machine. Only when a value is still missing does the CLI derive it from the
+`config.yml` it finds, normally the one `otari serve` was started with, which is
+the zero-configuration path on the gateway's own machine.
 
 ## The PreToolUse hook
 
@@ -91,6 +95,8 @@ keep them; the gates they enforce still come from the repo being worked on.
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `OTARI_POLICY_NAME` | required (Stop hook) | Policy to check, or the label when a gates file is found |
+| `OTARI_URL` | derived from `config.yml` | Gateway base URL, read by `otari policy check` and `give-up` |
+| `OTARI_API_KEY` | `config.yml`'s `master_key` | An ordinary Otari API key for that gateway |
 | `OTARI_CLI_PATH` | `otari` on `PATH` | Override for a non-`PATH` `otari` install |
 | `OTARI_POLICY_CHECK_MAX_ATTEMPTS` | `3` | Retry cap per session |
 | `OTARI_POLICY_CHECK_FAIL_MODE` | `open` | `open` or `closed`, see above |

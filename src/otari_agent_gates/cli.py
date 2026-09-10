@@ -185,10 +185,34 @@ def _load_gates_file(path: Path) -> PolicyCheckSpec:
 
 
 def _base_url_and_key(config: str | None, url: str | None, api_key: str | None) -> tuple[str, str]:
+    """The gateway to call and the key to send.
+
+    ``url`` and ``api_key`` arrive from the flags or their ``OTARI_URL`` and
+    ``OTARI_API_KEY`` environment defaults. Only what is still missing is derived
+    from ``config.yml``, so a developer on another machine never needs one.
+    """
+    if url and api_key:
+        return url, api_key
     cfg = load_config(config)
     host = cfg.host if cfg.host and cfg.host != "0.0.0.0" else "127.0.0.1"
     base_url = url or f"http://{host}:{cfg.port}"
     return base_url, api_key or cfg.master_key or ""
+
+
+_URL_OPTION = click.option(
+    "--url",
+    default=None,
+    envvar="OTARI_URL",
+    show_envvar=True,
+    help="Gateway base URL. Default: OTARI_URL, else derived from --config's host/port.",
+)
+_API_KEY_OPTION = click.option(
+    "--api-key",
+    default=None,
+    envvar="OTARI_API_KEY",
+    show_envvar=True,
+    help="Otari API key. Default: OTARI_API_KEY, else --config's master_key.",
+)
 
 
 @policy.command(name="check")
@@ -207,8 +231,8 @@ def _base_url_and_key(config: str | None, url: str | None, api_key: str | None) 
     help="Path to config YAML file",
     default=None,
 )
-@click.option("--url", default=None, help="Gateway base URL. Default: derived from --config's host/port.")
-@click.option("--api-key", default=None, help="Otari API key. Default: --config's master_key.")
+@_URL_OPTION
+@_API_KEY_OPTION
 @click.option("--max-chars", type=int, default=20_000, help="Transcript excerpt cap, before the gateway's own cap.")
 @click.option(
     "--session-id",
@@ -236,8 +260,10 @@ def policy_check(
 ) -> None:
     """Check POLICY_NAME against a Claude Code transcript, via a running `otari serve`.
 
-    Connection details default from the same config.yml the server loads, so `otari serve`
-    then `otari policy check` against one config file needs no extra flags.
+    The gateway comes from --url or OTARI_URL and the key from --api-key or OTARI_API_KEY,
+    which is how a developer on another machine points at a shared gateway with an ordinary
+    Otari API key. With neither set, both default from the config.yml the CLI finds, so
+    `otari serve` then `otari policy check` on the gateway's own machine needs no flags.
 
     Exit codes: 0 compliant; 1 non-compliant; 2 could not check at all (unreachable
     gateway, unknown policy, a malformed gates file, or on_unavailable=block on an
@@ -332,8 +358,8 @@ def policy_check(
     "session's timeline.",
 )
 @click.option("--config", "-c", type=click.Path(exists=True, dir_okay=False), help="Path to config YAML file")
-@click.option("--url", default=None, help="Gateway base URL. Default: derived from --config's host/port.")
-@click.option("--api-key", default=None, help="Otari API key. Default: --config's master_key.")
+@_URL_OPTION
+@_API_KEY_OPTION
 def policy_give_up(policy_name: str, session_id: str, config: str | None, url: str | None, api_key: str | None) -> None:
     """Record that POLICY_NAME's check for SESSION_ID ended without ever reaching compliant.
 

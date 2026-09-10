@@ -24,6 +24,13 @@ import otari_agent_gates.cli as gateway_cli
 from otari_agent_gates.headless import ClaudeHeadlessResult
 
 
+@pytest.fixture(autouse=True)
+def _no_gateway_in_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The config-derived defaults are what these tests exercise unless a test sets the variables."""
+    monkeypatch.delenv("OTARI_URL", raising=False)
+    monkeypatch.delenv("OTARI_API_KEY", raising=False)
+
+
 def _fake_result(text: str) -> ClaudeHeadlessResult:
     return ClaudeHeadlessResult(
         text=text,
@@ -203,6 +210,76 @@ def test_policy_check_url_and_api_key_overrides(tmp_path: Path, monkeypatch: pyt
     assert result.exit_code == 0
     assert captured["url"] == "http://otari.example.com:9000/api/v1/plugins/agent-gates/policy-checks/p/check"
     assert captured["auth_header"] == "override-key"
+
+
+def test_policy_check_url_and_api_key_default_from_environment(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A developer who is not on the gateway machine has no config.yml to derive anything from."""
+
+    def no_config(_path: Any) -> Any:
+        raise AssertionError("config.yml must not be read when OTARI_URL and OTARI_API_KEY are set")
+
+    monkeypatch.setattr(gateway_cli, "load_config", no_config)
+    monkeypatch.setenv("OTARI_URL", "https://otari.example.com/")
+    monkeypatch.setenv("OTARI_API_KEY", "sk-ordinary-key")
+    _stub_excerpt(monkeypatch)
+    captured: dict[str, Any] = {}
+
+    def fake_urlopen(request: Any, **_k: Any) -> _FakeResponse:
+        captured["url"] = request.full_url
+        captured["auth_header"] = request.get_header("Otari-key")
+        return _FakeResponse(200, {"policy": "p", "checked": True, "compliant": True, "violations": [], "guidance": ""})
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+
+    result = CliRunner().invoke(gateway_cli.policy, ["check", "p", "--claude-transcript", _write_transcript(tmp_path)])
+    assert result.exit_code == 0, result.output
+    assert captured["url"] == "https://otari.example.com/api/v1/plugins/agent-gates/policy-checks/p/check"
+    assert captured["auth_header"] == "sk-ordinary-key"
+
+
+def test_policy_check_flags_beat_environment(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OTARI_URL", "https://env.example.com")
+    monkeypatch.setenv("OTARI_API_KEY", "env-key")
+    _stub_config(monkeypatch)
+    _stub_excerpt(monkeypatch)
+    captured: dict[str, Any] = {}
+
+    def fake_urlopen(request: Any, **_k: Any) -> _FakeResponse:
+        captured["url"] = request.full_url
+        captured["auth_header"] = request.get_header("Otari-key")
+        return _FakeResponse(200, {"policy": "p", "checked": True, "compliant": True, "violations": [], "guidance": ""})
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+
+    result = CliRunner().invoke(
+        gateway_cli.policy,
+        ["check", "p", "--claude-transcript", _write_transcript(tmp_path), "--url", "http://flag:1", "--api-key", "fk"],
+    )
+    assert result.exit_code == 0
+    assert captured["url"] == "http://flag:1/api/v1/plugins/agent-gates/policy-checks/p/check"
+    assert captured["auth_header"] == "fk"
+
+
+def test_policy_check_partial_environment_fills_the_rest_from_config(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("OTARI_URL", "https://env.example.com")
+    monkeypatch.delenv("OTARI_API_KEY", raising=False)
+    _stub_config(monkeypatch, master_key="from-config")
+    _stub_excerpt(monkeypatch)
+    captured: dict[str, Any] = {}
+
+    def fake_urlopen(request: Any, **_k: Any) -> _FakeResponse:
+        captured["url"] = request.full_url
+        captured["auth_header"] = request.get_header("Otari-key")
+        return _FakeResponse(200, {"policy": "p", "checked": True, "compliant": True, "violations": [], "guidance": ""})
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+
+    result = CliRunner().invoke(gateway_cli.policy, ["check", "p", "--claude-transcript", _write_transcript(tmp_path)])
+    assert result.exit_code == 0
+    assert captured["url"] == "https://env.example.com/api/v1/plugins/agent-gates/policy-checks/p/check"
+    assert captured["auth_header"] == "from-config"
 
 
 def test_policy_check_sends_the_transcripts_latest_entry_uuid_as_turn_id(
@@ -847,6 +924,30 @@ def test_policy_give_up_sends_session_id_and_detected_repo_branch(monkeypatch: p
     assert result.exit_code == 0
     assert captured["url"].endswith("/api/v1/plugins/agent-gates/policy-checks/p/give-up")
     assert captured["body"] == {"session_id": "sess-1", "repo": "otari", "branch": "feature-a"}
+
+
+def test_policy_give_up_url_and_api_key_default_from_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    def no_config(_path: Any) -> Any:
+        raise AssertionError("config.yml must not be read when OTARI_URL and OTARI_API_KEY are set")
+
+    monkeypatch.setattr(gateway_cli, "load_config", no_config)
+    monkeypatch.setenv("OTARI_URL", "https://otari.example.com")
+    monkeypatch.setenv("OTARI_API_KEY", "sk-ordinary-key")
+    monkeypatch.setattr(gateway_cli, "_git_toplevel", lambda _path: None)
+    monkeypatch.setattr(gateway_cli, "_current_branch_label", lambda _path: None)
+    captured: dict[str, Any] = {}
+
+    def fake_urlopen(request: Any, **_k: Any) -> _FakeResponse:
+        captured["url"] = request.full_url
+        captured["auth_header"] = request.get_header("Otari-key")
+        return _FakeResponse(204, {})
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+
+    result = CliRunner().invoke(gateway_cli.policy, ["give-up", "p", "--session-id", "sess-1"])
+    assert result.exit_code == 0, result.output
+    assert captured["url"] == "https://otari.example.com/api/v1/plugins/agent-gates/policy-checks/p/give-up"
+    assert captured["auth_header"] == "sk-ordinary-key"
 
 
 def test_policy_give_up_requires_session_id() -> None:
