@@ -79,9 +79,21 @@ def extract_executed_commands(transcript_path: str) -> list[dict[str, Any]]:
                 continue
             tool_use_id = block.get("tool_use_id")
             command = tool_use_commands.get(tool_use_id) if isinstance(tool_use_id, str) else None
-            if command is not None:
-                commands.append({"command": command, "is_error": bool(block.get("is_error", False))})
+            if command is None or _was_denied(block):
+                continue
+            commands.append({"command": command, "is_error": bool(block.get("is_error", False))})
     return commands
+
+
+def _was_denied(tool_result: dict[str, Any]) -> bool:
+    """Whether a ``tool_result`` records a PreToolUse denial rather than a run.
+
+    A denied call never executed, so a ``must_not_run`` gate must not fail on it
+    and a ``must_run_and_succeed`` gate must not count it. Claude Code reports
+    the denial as the tool's result, prefixed with the hook event name.
+    """
+    text = _render_tool_result(tool_result.get("content"))
+    return "PreToolUse" in text and ("permissionDecision" in text or "hook error" in text)
 
 
 def strip_inert_shell_regions(command: str) -> str:

@@ -321,6 +321,8 @@ def _write_transcript_with_edit_and_nested_memory(tmp_path: Path) -> str:
 def test_policy_check_sends_edited_and_loaded_context_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     _stub_config(monkeypatch)
     _stub_excerpt(monkeypatch)
+    # The test runs inside this repository's own working tree.
+    monkeypatch.setattr(gateway_cli, "_working_tree_changes", lambda _toplevel: [])
     captured: dict[str, Any] = {}
 
     def fake_urlopen(request: Any, **_k: Any) -> _FakeResponse:
@@ -874,3 +876,23 @@ def test_policy_give_up_connection_error_exits_two(monkeypatch: pytest.MonkeyPat
 
     result = CliRunner().invoke(gateway_cli.policy, ["give-up", "p", "--session-id", "sess-1"])
     assert result.exit_code == 2
+
+
+def _git(repo: Path, *args: str) -> None:
+    subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True, text=True)
+
+
+def test_working_tree_changes_lists_modified_and_untracked_paths(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    (repo / "src").mkdir(parents=True)
+    (repo / "src" / "app.py").write_text("x = 1\n")
+    _git(repo, "init", "-q", "-b", "main")
+    _git(repo, "-c", "user.email=t@t", "-c", "user.name=t", "add", "-A")
+    _git(repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "init")
+    (repo / "src" / "app.py").write_text("x = 2\n")
+    (repo / "tests").mkdir()
+    (repo / "tests" / "test_app.py").write_text("assert True\n")
+
+    assert gateway_cli._working_tree_changes(repo) == ["src/app.py", "tests/test_app.py"]
+    assert gateway_cli._working_tree_changes(None) == []
+    assert gateway_cli._working_tree_changes(tmp_path / "not-a-repo") == []

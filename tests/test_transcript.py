@@ -298,3 +298,25 @@ def test_extract_loaded_context_paths_is_not_scoped_to_the_current_turn(tmp_path
 
 def test_extract_loaded_context_paths_missing_file_returns_empty() -> None:
     assert claude_transcript.extract_loaded_context_paths("/nonexistent/path.jsonl") == []
+
+
+def test_extract_executed_commands_skips_a_call_a_pretooluse_hook_denied(tmp_path: Path) -> None:
+    denial = (
+        "PreToolUse:Bash hook error: [python3 pretooluse_hook.py]: "
+        '{"hookSpecificOutput": {"permissionDecision": "deny"}, "systemMessage": "Never force-push."}'
+    )
+    entries: list[dict[str, Any]] = [
+        {"type": "user", "message": {"role": "user", "content": "push it"}},
+        _bash_tool_use("t1", "git push --force origin main"),
+        {
+            "type": "user",
+            "message": {
+                "role": "user",
+                "content": [{"type": "tool_result", "tool_use_id": "t1", "content": denial, "is_error": True}],
+            },
+        },
+        _bash_tool_use("t2", "git status"),
+        _tool_result("t2", is_error=False),
+    ]
+    commands = claude_transcript.extract_executed_commands(_write_transcript(tmp_path, entries))
+    assert commands == [{"command": "git status", "is_error": False}]

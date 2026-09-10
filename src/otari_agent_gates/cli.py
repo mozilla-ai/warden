@@ -59,6 +59,42 @@ def _git_toplevel(start: Path) -> Path | None:
     return Path(toplevel) if toplevel else None
 
 
+def _working_tree_changes(repo_toplevel: Path | None) -> list[str]:
+    """Paths changed in the working tree, relative to the repo, or none outside a repo.
+
+    A turn that writes a file through a shell command (``cat >``, ``sed -i``,
+    ``tee``) leaves no ``Edit`` or ``Write`` call in the transcript, so this is
+    what keeps a ``paths`` condition or an ``edited_path`` gate from missing it.
+    Covers everything uncommitted at check time, so it can reach back before the
+    current turn; that errs toward evaluating a gate rather than skipping it.
+    """
+    git_binary = shutil.which("git")
+    if repo_toplevel is None or git_binary is None:
+        return []
+    try:
+        completed = subprocess.run(  # noqa: S603 argv list, never shell=True
+            [git_binary, "-C", str(repo_toplevel), "status", "--porcelain", "--untracked-files=all"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+    if completed.returncode != 0:
+        return []
+    paths: list[str] = []
+    for line in completed.stdout.splitlines():
+        if len(line) < 4:
+            continue
+        path = line[3:]
+        # A rename is reported as "old -> new"; the new path is the one edited.
+        if " -> " in path:
+            path = path.split(" -> ", 1)[1]
+        paths.append(path.strip('"'))
+    return paths
+
+
 def _current_repo_label(start: Path) -> str | None:
     """The basename of the git repo ``start`` is inside, for grouping runs by repo."""
     toplevel = _git_toplevel(start)
@@ -230,7 +266,10 @@ def policy_check(
     repo = repo_toplevel.name if repo_toplevel is not None else None
     branch = _current_branch_label(Path.cwd())
     executed_commands = extract_executed_commands(claude_transcript_path)
-    edited_paths = _relativize_paths(extract_edited_paths(claude_transcript_path), repo_toplevel)
+    edited_paths = sorted(
+        set(_relativize_paths(extract_edited_paths(claude_transcript_path), repo_toplevel))
+        | set(_working_tree_changes(repo_toplevel))
+    )
     loaded_context_paths = _relativize_paths(extract_loaded_context_paths(claude_transcript_path), repo_toplevel)
 
     gates_file = Path(gates_file_path) if gates_file_path else find_gates_file(Path.cwd())
