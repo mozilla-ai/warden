@@ -1,23 +1,148 @@
-@import "tailwindcss";
-@import "@heroui/styles";
+/* The page wears the dashboard's stylesheet, linked from index.html as
+   /dashboard.css. That file carries the token values, the fonts, the HeroUI
+   component styles and the dashboard's own utility classes, so this build
+   emits only the utilities the plugin's source names. No preflight, no font
+   faces, no :root values: every variable below is resolved at runtime by the
+   dashboard stylesheet, so there is nothing here to drift. */
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
 
-@custom-variant dark (&:where(.dark, .dark *, [data-theme="dark"], [data-theme="dark"] *));
+/* Both spellings of the dark theme, matching the selector the dashboard keys
+   its dark token block on. */
+@custom-variant dark (
+  &:where(.dark, .dark *, [data-theme="dark"], [data-theme="dark"] *)
+);
 
+/* Registration only. `inline` makes a utility name the variable directly
+   (`.text-muted { color: var(--muted) }`, the way HeroUI's own mapping does);
+   `reference` keeps this block from emitting a :root of self-references. The
+   first group are HeroUI's aliases, the rest are the dashboard's own tokens. */
+@theme inline reference {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-secondary: var(--surface-secondary);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+
+  --color-surface-muted: var(--color-surface-muted);
+  --color-surface-subtle: var(--color-surface-subtle);
+  --color-border-subtle: var(--color-border-subtle);
+  --color-border-strong: var(--color-border-strong);
+  --color-control-border: var(--color-control-border);
+  --color-text-subtle: var(--color-text-subtle);
+  --color-link: var(--color-link);
+  --color-link-hover: var(--color-link-hover);
+  --color-primary: var(--color-primary);
+  --color-primary-subtle: var(--color-primary-subtle);
+  --color-primary-subtle-foreground: var(--color-primary-subtle-foreground);
+  --color-success-subtle: var(--color-success-subtle);
+  --color-warning-subtle: var(--color-warning-subtle);
+  --color-danger-subtle: var(--color-danger-subtle);
+  --color-info: var(--color-info);
+  --color-info-subtle: var(--color-info-subtle);
+  --color-code-surface: var(--color-code-surface);
+  --color-code-border: var(--color-code-border);
+
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --font-display: var(--font-display);
+
+  --text-xs--letter-spacing: 0.01em;
+  --text-sm--letter-spacing: 0.005em;
+  --text-base--letter-spacing: 0em;
+  --text-lg--letter-spacing: -0.01em;
+  --text-xl--letter-spacing: -0.015em;
+  --text-2xl--letter-spacing: -0.02em;
+}
+
+/* The dashboard's type roles, so a class this source names is emitted here
+   too rather than depending on the dashboard's bundle having used it. Same
+   declarations as web/src/styles/globals.css in the otari repo. */
+@utility text-display {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  line-height: var(--text-2xl--line-height);
+  letter-spacing: -0.01em;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+@utility text-heading {
+  font-family: var(--font-sans);
+  font-size: var(--text-lg);
+  line-height: var(--text-lg--line-height);
+  letter-spacing: var(--text-lg--letter-spacing);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+@utility text-title {
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--text-base--line-height);
+  letter-spacing: var(--text-base--letter-spacing);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+@utility text-body {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm--line-height);
+  letter-spacing: var(--text-sm--letter-spacing);
+  font-weight: var(--font-weight-normal);
+  color: var(--color-text);
+}
+@utility text-emphasis {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm--line-height);
+  letter-spacing: var(--text-sm--letter-spacing);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+@utility text-caption {
+  font-family: var(--font-sans);
+  font-size: var(--text-caption-step);
+  line-height: var(--text-caption-step--line-height);
+  letter-spacing: var(--text-caption-step--letter-spacing);
+  font-weight: var(--font-weight-normal);
+  color: var(--color-text-muted);
+}
+@utility text-subtle {
+  color: var(--color-text-subtle);
+}
+@utility text-overline {
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  line-height: var(--text-xs--line-height);
+  letter-spacing: 0.06em;
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  color: var(--color-text-subtle);
+}
+@utility text-mono-caption {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption-step);
+}
+@utility text-mono-figure {
+  font-family: var(--font-mono);
+  font-size: 30px;
+  line-height: 36px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The frame is what scrolls in the dashboard, so inside it the document must
+   not: <main> takes the height and scrolls, and the body never grows past
+   the viewport, which is what keeps a second scrollbar off the frame edge. */
 html,
 body,
 #root {
-  min-height: 100%;
+  height: 100%;
 }
-
 body {
-  margin: 0;
-  background: var(--background);
-  color: var(--foreground);
-  font-family:
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    "Segoe UI",
-    Roboto,
-    sans-serif;
+  overflow: hidden;
 }

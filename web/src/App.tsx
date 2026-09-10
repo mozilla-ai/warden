@@ -1,51 +1,45 @@
-import { NavLink, Route, Routes } from "react-router"
-import { BranchesPage } from "./pages/BranchesPage"
+import { Route, Routes, useLocation, useNavigate } from "react-router"
+import { Tab, TabRow } from "./components/TabRow"
 import { GatesPage } from "./pages/GatesPage"
 import { OverviewPage } from "./pages/OverviewPage"
-import { ReposPage } from "./pages/ReposPage"
 import { RunsPage } from "./pages/RunsPage"
-import { SessionsPage } from "./pages/SessionsPage"
 
-const NAV = [
-  { to: "/", label: "Overview", end: true },
+const TABS = [
+  { to: "/", label: "Overview" },
   { to: "/runs", label: "Runs" },
-  { to: "/sessions", label: "Sessions" },
-  { to: "/repos", label: "Repos" },
-  { to: "/branches", label: "Branches" },
   { to: "/gates", label: "Gates" },
 ]
 
+function activeTab(pathname: string): string {
+  const match = TABS.find((tab) => tab.to !== "/" && pathname.startsWith(tab.to))
+  return match?.to ?? "/"
+}
+
+// The dashboard frames this page under its own "Agent gates" title, so the
+// page carries no title of its own: a row of tabs, then the surface. <main>
+// is the scroll container and the column inside it repeats the dashboard's
+// own content column, so a band that bleeds measures the same width here.
 export function App() {
+  const { pathname } = useLocation()
+  const navigate = useNavigate()
+  const current = activeTab(pathname)
   return (
-    <div className="flex min-h-screen bg-background text-foreground">
-      <nav aria-label="Agent gates" className="flex w-48 shrink-0 flex-col gap-1 border-r border-border bg-surface p-3">
-        <span className="px-2 pb-2 text-xs font-semibold uppercase tracking-wide text-muted">
-          Agent gates
-        </span>
-        {NAV.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.end}
-            className={({ isActive }) =>
-              `rounded-md px-2 py-1.5 text-sm ${isActive ? "bg-accent-soft font-medium text-accent-soft-foreground" : "text-foreground hover:bg-surface-secondary"}`
-            }
-          >
-            {item.label}
-          </NavLink>
-        ))}
-      </nav>
-      <main className="min-w-0 flex-1 p-6">
+    <main className="h-full overflow-y-auto bg-background text-foreground">
+      <div className="mx-auto flex min-h-full max-w-[112.5rem] flex-col gap-6 px-4 py-5 md:px-6 md:py-6">
+        <TabRow>
+          {TABS.map((tab) => (
+            <Tab key={tab.to} isActive={current === tab.to} onPress={() => void navigate(tab.to)}>
+              {tab.label}
+            </Tab>
+          ))}
+        </TabRow>
         <Routes>
           <Route path="/" element={<OverviewPage />} />
           <Route path="/runs" element={<RunsPage />} />
-          <Route path="/sessions" element={<SessionsPage />} />
-          <Route path="/repos" element={<ReposPage />} />
-          <Route path="/branches" element={<BranchesPage />} />
           <Route path="/gates" element={<GatesPage />} />
           <Route path="*" element={<OverviewPage />} />
         </Routes>
-      </main>
-    </div>
+      </div>
+    </main>
   )
 }

@@ -1,28 +1,27 @@
-import { Button } from "@heroui/react"
 import { Link, useNavigate } from "react-router"
 import { usePolicyCheckHistory, usePolicyCheckHistoryCount, usePolicyCheckRepos } from "../api/hooks"
 import type { PolicyCheckHistoryEntry, RepoSummary } from "../api/types"
 import { DataTable, type DataTableColumn } from "../components/DataTable"
+import { DocsLink } from "../components/DocsLink"
+import { EmptyState } from "../components/EmptyState"
 import { ErrorBanner } from "../components/ErrorBanner"
-import { PageHeader } from "../components/PageHeader"
-import { StatCard } from "../components/StatCard"
-import { RunStatusMark } from "../components/StatusMark"
+import { KpiCell, KpiStrip } from "../components/KpiStrip"
+import { SectionHeading } from "../components/Section"
+import { RunStatusChip } from "../components/StatusChip"
+import { TabIntro } from "../components/TabIntro"
 import { formatCost, formatPct, formatRelative } from "../helpers/format"
 
 const README_URL = "https://github.com/mozilla-ai/otari-agent-gates#readme"
 
-function PanelHeader({ title, to }: { title: string; to: string }) {
+function ViewAll({ to }: { to: string }) {
   return (
-    <div className="flex items-center justify-between">
-      <h2 className="text-lg font-semibold">{title}</h2>
-      <Link to={to} className="text-sm text-link underline-offset-2 hover:underline">
-        View all
-      </Link>
-    </div>
+    <Link to={to} className="text-sm text-link hover:text-link-hover">
+      View all
+    </Link>
   )
 }
 
-function RecentRunsPanel({
+function RecentRuns({
   runs,
   isLoading,
   error,
@@ -34,16 +33,18 @@ function RecentRunsPanel({
   const columns: DataTableColumn<PolicyCheckHistoryEntry>[] = [
     { id: "when", header: "When", isRowHeader: true, cell: (row) => formatRelative(row.created_at) },
     { id: "policy", header: "Policy", cell: (row) => row.policy_name },
-    { id: "repo", header: "Repo", cell: (row) => row.repo ?? <span className="text-muted">—</span> },
+    { id: "repo", header: "Repo", cell: (row) => row.repo ?? <span className="text-subtle">—</span> },
     {
       id: "status",
       header: "Status",
-      cell: (row) => <RunStatusMark checked={row.checked} compliant={row.compliant} />,
+      cell: (row) => (
+        <RunStatusChip checked={row.checked} compliant={row.compliant} gaveUp={row.gave_up} dismissedAt={row.dismissed_at} />
+      ),
     },
   ]
   return (
-    <div className="flex flex-col gap-3">
-      <PanelHeader title="Recent runs" to="/runs" />
+    <section className="flex flex-col gap-3">
+      <SectionHeading title="Recent runs" trailing={<ViewAll to="/runs" />} />
       <ErrorBanner error={error} />
       <DataTable
         ariaLabel="Recent runs"
@@ -53,19 +54,11 @@ function RecentRunsPanel({
         isLoading={isLoading}
         emptyContent="No runs recorded yet."
       />
-    </div>
+    </section>
   )
 }
 
-function TopReposByCostPanel({
-  repos,
-  isLoading,
-  error,
-}: {
-  repos: RepoSummary[]
-  isLoading: boolean
-  error: unknown
-}) {
+function TopReposByCost({ repos, isLoading, error }: { repos: RepoSummary[]; isLoading: boolean; error: unknown }) {
   const ranked = [...repos]
     .filter((repo) => repo.total_cost_usd != null)
     .sort((a, b) => (b.total_cost_usd ?? 0) - (a.total_cost_usd ?? 0))
@@ -76,28 +69,21 @@ function TopReposByCostPanel({
       header: "Repo",
       isRowHeader: true,
       cell: (row) => (
-        <Link
-          to={`/runs?repo=${encodeURIComponent(row.repo)}`}
-          className="font-medium underline underline-offset-2"
-        >
+        <Link to={`/runs?group=repo&repo=${encodeURIComponent(row.repo)}`} className="text-link hover:text-link-hover">
           {row.repo}
         </Link>
       ),
     },
     {
       id: "cost",
-      header: (
-        <span title="What the claude CLI reports these tokens would cost metered. Not money spent: subscription-backed judge gates run on your existing Claude login.">
-          Judge cost (API equiv.)
-        </span>
-      ),
+      header: "Judge cost",
       align: "end",
-      cell: (row) => formatCost(row.total_cost_usd ?? 0),
+      cell: (row) => <span className="text-mono-caption">{formatCost(row.total_cost_usd ?? 0)}</span>,
     },
   ]
   return (
-    <div className="flex flex-col gap-3">
-      <PanelHeader title="Top repos by cost" to="/repos" />
+    <section className="flex flex-col gap-3">
+      <SectionHeading title="Top repos by cost" trailing={<ViewAll to="/runs?group=repo" />} />
       <ErrorBanner error={error} />
       <DataTable
         ariaLabel="Top repos by cost"
@@ -105,13 +91,13 @@ function TopReposByCostPanel({
         rows={ranked}
         getRowKey={(row) => row.repo}
         isLoading={isLoading}
-        emptyContent="No subscription-backend judge cost reported yet."
+        emptyContent="No judge cost reported yet."
       />
-      <p className="text-xs text-muted">
-        Not money spent. This is the API-equivalent cost the claude CLI reports for tokens that
-        ran on your existing Claude login at no marginal cost.
+      <p className="text-caption text-subtle">
+        API-equivalent cost the claude CLI reports, not money spent: a subscription-backed judge gate runs on your
+        existing Claude login.
       </p>
-    </div>
+    </section>
   )
 }
 
@@ -125,38 +111,48 @@ export function OverviewPage() {
   const total = totalCount.data?.total ?? null
   const compliant = compliantCount.data?.total ?? null
   const passRate = total !== null && compliant !== null && total > 0 ? compliant / total : null
+  const repoRows = repos.data ?? []
+  const pricedRepos = repoRows.filter((repo) => repo.total_cost_usd != null)
+  const judgeCost = pricedRepos.length > 0 ? pricedRepos.reduce((sum, repo) => sum + (repo.total_cost_usd ?? 0), 0) : null
+  const nothingRecorded = total === 0
 
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader
-        title="Overview"
-        description="A reviewer for what your coding agent actually did, so you don't have to check its own work yourself."
-      />
+    <>
+      <TabIntro>
+        A reviewer for what your coding agent actually did, so you don't have to check its own work yourself.{" "}
+        <DocsLink href={README_URL}>Set up .otari-gates.yml</DocsLink>
+      </TabIntro>
       <ErrorBanner error={totalCount.error ?? compliantCount.error} />
-      <div className="grid grid-cols-2 gap-4">
-        <StatCard
+      <KpiStrip>
+        <KpiCell
           label="Pass rate"
           value={passRate !== null ? formatPct(passRate) : "—"}
-          hint={total !== null ? `${compliant ?? 0} of ${total} runs` : undefined}
-          to="/runs"
+          subline={total ? `${compliant ?? 0} of ${total} runs` : "No runs yet"}
         />
-        <StatCard label="Total runs" value={total !== null ? `${total}` : "—"} to="/runs" />
-      </div>
-      <div className="grid gap-6 lg:grid-cols-2">
-        <RecentRunsPanel runs={recentRuns.data ?? []} isLoading={recentRuns.isLoading} error={recentRuns.error} />
-        <TopReposByCostPanel repos={repos.data ?? []} isLoading={repos.isLoading} error={repos.error} />
-      </div>
-      <div className="flex flex-wrap gap-3">
-        <Button variant="primary" onPress={() => navigate("/gates")}>
-          Add a gate
-        </Button>
-        <Button variant="secondary" onPress={() => navigate("/runs")}>
-          View all runs
-        </Button>
-        <Button variant="ghost" onPress={() => window.open(README_URL, "_blank", "noopener")}>
-          Set up .otari-gates.yml
-        </Button>
-      </div>
-    </div>
+        <KpiCell
+          label="Total runs"
+          value={total !== null ? `${total}` : "—"}
+          subline={repoRows.length === 1 ? "1 repo" : `${repoRows.length} repos`}
+        />
+        <KpiCell
+          label="Judge cost"
+          value={judgeCost !== null ? formatCost(judgeCost) : "—"}
+          subline="API equivalent, not money spent"
+        />
+      </KpiStrip>
+      {nothingRecorded ? (
+        <EmptyState
+          title="No runs yet"
+          description="A run is one reviewed turn of a coding agent's session, judged against a policy's gates. Runs appear here once the Stop hook is installed and a policy exists, either a repo's own .otari-gates.yml or a policy stored on this gateway."
+          actionLabel="New gate"
+          onAction={() => void navigate("/gates")}
+        />
+      ) : (
+        <div className="grid gap-6 lg:grid-cols-2">
+          <RecentRuns runs={recentRuns.data ?? []} isLoading={recentRuns.isLoading} error={recentRuns.error} />
+          <TopReposByCost repos={repoRows} isLoading={repos.isLoading} error={repos.error} />
+        </div>
+      )}
+    </>
   )
 }

@@ -1,35 +1,31 @@
-import { Description, FieldError, Input, Label, TextField } from "@heroui/react"
+import { Description, FieldError, TextArea as HeroTextArea, Label, TextField } from "@heroui/react"
 import type { ReactNode } from "react"
 import { FieldMessages } from "./FieldMessages"
 
-export function Field({
+export function TextArea({
   label,
   value,
   onChange,
   onBlur,
   placeholder,
+  rows = 4,
+  description,
   isRequired,
-  isDisabled,
   isInvalid,
   errorMessage,
-  description,
-  autoFocus,
   reserveMessage,
-  className = "",
 }: {
   label: string
   value: string
   onChange: (value: string) => void
   onBlur?: () => void
   placeholder?: string
+  rows?: number
+  description?: ReactNode
   isRequired?: boolean
-  isDisabled?: boolean
   isInvalid?: boolean
   errorMessage?: string
-  description?: ReactNode
-  autoFocus?: boolean
   reserveMessage?: boolean
-  className?: string
 }) {
   return (
     <TextField
@@ -37,13 +33,11 @@ export function Field({
       onChange={onChange}
       onBlur={onBlur}
       isRequired={isRequired}
-      isDisabled={isDisabled}
       isInvalid={isInvalid}
-      className={`flex max-w-md flex-col gap-1 ${className}`}
+      className="flex flex-col gap-1"
     >
-      {/* No manual "*": HeroUI marks a required label through CSS. */}
       <Label className="text-body">{label}</Label>
-      <Input placeholder={placeholder} autoFocus={autoFocus} />
+      <HeroTextArea rows={rows} placeholder={placeholder} />
       <FieldMessages reserve={reserveMessage}>
         {description ? <Description className="text-muted">{description}</Description> : null}
         {errorMessage ? <FieldError className="text-danger">{errorMessage}</FieldError> : null}
