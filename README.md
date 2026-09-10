@@ -146,6 +146,41 @@ matching Bash call with that gate's own message, so one declaration serves both.
 It never contacts a gateway and fails open on anything it cannot evaluate. Details
 in [docs/hooks.md](docs/hooks.md).
 
+## Checking traffic instead of transcripts
+
+An agent that talks to its model through Otari puts every tool call and every
+result on the wire, so the gateway can judge the same gates with nothing
+installed on the client and for every agent at once. Name what to check under
+the plugin's config block:
+
+```yaml
+plugins:
+  agent-gates:
+    traffic:
+      policy: team-rules        # a stored policy, or:
+      gates:                    # inline gates, the same shape as .otari-gates.yml
+        - type: command
+          name: no-force-push
+          pattern: "git\\s+push\\b.*--force"
+          mode: must_not_run
+          message: "Never force-push."
+```
+
+On every inference request the plugin evaluates the `command` and
+`edited_path` gates against the previous turn (the tool calls the agent made
+and the results it got back) and, for each tool call in the model's answer,
+the `must_not_run` gates against the command about to run. Otari records what
+fired on the request's usage row under `plugin_annotations.agent-gates`, with
+a `would_deny` entry where a gate would have refused a call. Nothing is
+altered yet: this is the monitor phase of Otari's traffic seam, and enforcement
+follows it.
+
+The other gate types stay with the hook: `scoped_guidance` needs the loaded
+context, `deterministic` the rendered transcript, and `llm_judge` a model call
+that should not be paid per request. So do the repo's own `.otari-gates.yml`,
+the git working-tree view, and the block-and-retry loop, which only a client
+can drive.
+
 ## Gate types
 
 | Type | Checks | Evidence |

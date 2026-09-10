@@ -216,13 +216,31 @@ class PolicyCheckSpec(BaseModel):
     )
 
 
+class TrafficConfig(BaseModel):
+    """What to check on inference traffic passing through the gateway (see ``observer``).
+
+    Either a stored policy by name or inline gates; inline wins when both are set.
+    Empty means the traffic observer is not registered at all.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    policy: str | None = Field(default=None, description="A stored policy's name, read fresh about once a minute.")
+    gates: list[GateSpec] = Field(default_factory=list, description="Inline gates, the same shape as a gates file.")
+
+    @property
+    def active(self) -> bool:
+        return bool(self.policy or self.gates)
+
+
 class AgentGatesConfig(BaseModel):
     """The ``plugins.agent-gates:`` block of ``config.yml``.
 
     Loading the plugin is the on/off switch (``plugins.disabled`` turns it off), and a
-    policy is never declared here: it comes from a repo's own ``.otari-gates.yml`` or a
-    stored row. The block therefore carries only tuning knobs, and an unknown key fails
-    plugin load so a typo is caught at startup rather than ignored.
+    hook-checked policy is never declared here: it comes from a repo's own
+    ``.otari-gates.yml`` or a stored row. ``traffic`` names what the gateway checks on
+    the wire, which has no repository to carry a file. An unknown key fails plugin load
+    so a typo is caught at startup rather than ignored.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -232,6 +250,7 @@ class AgentGatesConfig(BaseModel):
         gt=0,
         description="How long one subscription-backend judge call may take before it counts as failed.",
     )
+    traffic: TrafficConfig = Field(default_factory=TrafficConfig)
 
 
 class Base(DeclarativeBase):

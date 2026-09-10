@@ -28,8 +28,14 @@ def register(ctx: PluginContext) -> None:
     from otari_agent_gates.cli import policy
     from otari_agent_gates.routes import operator_router, router
 
-    settings.configure(ctx.config)
+    config = settings.configure(ctx.config)
     ctx.add_router(router)
     ctx.add_router(operator_router)
     ctx.add_cli(policy)
     ctx.add_migrations(Path(__file__).parent / "migrations")
+    # Only where the config names something to check, and only on an Otari that
+    # has the traffic seam; an older gateway still gets the hook-driven half.
+    if config.traffic.active and hasattr(ctx, "add_traffic_observer"):
+        from otari_agent_gates.observer import AgentGatesObserver
+
+        ctx.add_traffic_observer(AgentGatesObserver())
