@@ -4,7 +4,7 @@
 A thin dispatcher: reads the hook's JSON payload from stdin and hands the
 transcript path to ``otari policy check``, which does everything else against a
 running ``otari serve``. This script owns only what is specific to being a Claude
-Code hook: the ``stop_hook_active`` loop guard and the per-session retry cap.
+Code hook: the per-session retry cap that keeps the block-and-retry loop bounded.
 
 On a non-compliant verdict it exits 2 with the violations on stderr, which Claude
 Code feeds back to the model and keeps the session going: an automatic retry
@@ -33,8 +33,8 @@ Environment variables:
 - ``OTARI_POLICY_NAME`` (required): which policy to check against. With a repo's
   own ``.otari-gates.yml`` this is only the label recorded in history.
 - ``OTARI_CLI_PATH`` (optional): override for a non-PATH ``otari`` install.
-- ``OTARI_POLICY_CHECK_MAX_ATTEMPTS`` (default ``3``): retry cap for one session,
-  on top of Claude Code's own ``stop_hook_active`` guard.
+- ``OTARI_POLICY_CHECK_MAX_ATTEMPTS`` (default ``3``): how many blocks one session
+  may receive before the hook gives up and lets it finish.
 - ``OTARI_POLICY_CHECK_FAIL_MODE`` (``open`` default, or ``closed``): what to do
   when ``otari policy check`` could not perform the check at all (exit code 2),
   as opposed to reporting non-compliant (exit code 1). ``open`` never blocks a
@@ -66,9 +66,9 @@ def main() -> int:
     except json.JSONDecodeError:
         return 0
 
-    if payload.get("stop_hook_active"):
-        return 0
-
+    # ``stop_hook_active`` marks a stop that follows an earlier block. It is not
+    # a reason to skip: the retry is exactly the turn that needs checking, and
+    # the per-session attempt cap below is what keeps the loop bounded.
     session_id = str(payload.get("session_id", "unknown"))
     transcript_path = payload.get("transcript_path")
     if not transcript_path:

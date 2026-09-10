@@ -50,15 +50,23 @@ def _base_payload(session_id: str, transcript_path: str = "/some/transcript.json
     return {"session_id": session_id, "transcript_path": transcript_path}
 
 
-def test_main_exits_zero_when_stop_hook_already_active(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_main_rechecks_a_stop_flagged_stop_hook_active(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A stop that follows an earlier block is the turn that needs checking, not one to wave through."""
     monkeypatch.setenv("OTARI_POLICY_NAME", "p")
+    monkeypatch.setattr(hook.tempfile, "gettempdir", lambda: str(tmp_path))
+    calls: list[list[str]] = []
 
-    def _fail_if_called(*_args: Any, **_kwargs: Any) -> None:
-        raise AssertionError("should not call otari when stop_hook_active is true")
+    def _record_call(argv: list[str], **_kwargs: Any) -> _FakeCompleted:
+        calls.append(argv)
+        return _FakeCompleted(0, json.dumps({"policy": "p", "compliant": True, "gates": []}))
 
-    monkeypatch.setattr(hook.subprocess, "run", _fail_if_called)
-    monkeypatch.setattr(sys, "stdin", _stdin_json({"stop_hook_active": True, "session_id": "s1"}))
+    monkeypatch.setattr(hook.subprocess, "run", _record_call)
+    payload = _base_payload("s1")
+    payload["stop_hook_active"] = True
+    monkeypatch.setattr(sys, "stdin", _stdin_json(payload))
     assert hook.main() == 0
+    assert len(calls) == 1
+    assert calls[0][1:4] == ["policy", "check", "p"]
 
 
 def test_main_missing_policy_name_exits_zero(monkeypatch: pytest.MonkeyPatch) -> None:

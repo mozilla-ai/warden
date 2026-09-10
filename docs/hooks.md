@@ -31,8 +31,9 @@ The hook keeps a per-session attempt count in a temp file. Once
 `OTARI_POLICY_CHECK_MAX_ATTEMPTS` (default 3) blocks have happened, it lets the
 session finish and records a `gave_up` marker through `otari policy give-up`, so
 the session's timeline in the dashboard can tell "converged" apart from
-"exhausted its retries". Claude Code's own `stop_hook_active` flag is honored too,
-so a hook-triggered continuation never re-triggers the hook.
+"exhausted its retries". A continuation Claude Code flags with `stop_hook_active`
+is checked again like any other stop: the retry is the turn that needs verifying,
+and the attempt cap is what keeps the loop bounded.
 
 `otari policy check` reads the gateway URL and API key from the `config.yml` it
 finds, normally the one `otari serve` was started with, so run both from the same

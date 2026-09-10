@@ -136,7 +136,7 @@ PreToolUse hook calls `otari policy pretooluse`.
 | --- | --- | --- |
 | `OTARI_POLICY_NAME` | required (Stop hook) | Policy to check, or the label when a gates file is found |
 | `OTARI_CLI_PATH` | `otari` on `PATH` | Override for a non-`PATH` `otari` install |
-| `OTARI_POLICY_CHECK_MAX_ATTEMPTS` | `3` | Retry cap per session, on top of Claude Code's `stop_hook_active` guard |
+| `OTARI_POLICY_CHECK_MAX_ATTEMPTS` | `3` | Retry cap per session, a retry after a block is checked again |
 | `OTARI_POLICY_CHECK_FAIL_MODE` | `open` | `open` never blocks a session over a check that could not run; `closed` does |
 
 The Stop hook is a retrospective reviewer. The PreToolUse hook is prevention: it
