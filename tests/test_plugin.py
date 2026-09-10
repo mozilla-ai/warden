@@ -70,6 +70,35 @@ def test_manifest_matches_the_package() -> None:
     assert (PACKAGE_DIR / manifest["ui"]["path"] / "index.html").is_file()
 
 
+def test_manifest_declares_everything_register_adds(tmp_path: Path) -> None:
+    """Otari refuses a plugin that registers more than its manifest declares, so load it the way
+    the gateway does: as a directory plugin, with traffic configured so every contribution fires.
+    """
+    from gateway.core.config import GatewayConfig
+    from gateway.models.plugins import PluginsConfig
+    from gateway.plugins.registry import load_plugins
+
+    install_dir = tmp_path / "plugins" / "agent-gates"
+    install_dir.mkdir(parents=True)
+    (install_dir / "otari_agent_gates").symlink_to(PACKAGE_DIR, target_is_directory=True)
+    traffic = {
+        "gates": [{"type": "command", "name": "no-rm", "pattern": "rm -rf", "mode": "must_not_run", "message": "no"}]
+    }
+    plugins = PluginsConfig.model_validate(
+        {"directory": str(tmp_path / "plugins"), "agent-gates": {"judge_timeout_seconds": 5, "traffic": traffic}}
+    )
+
+    registry = load_plugins(GatewayConfig(host="127.0.0.1", port=8000, master_key="mk", plugins=plugins))
+
+    plugin = registry.get("agent-gates")
+    assert plugin is not None and plugin.status == "loaded", plugin and plugin.error
+    assert plugin.routers and plugin.cli_groups and plugin.migrations and plugin.observers
+    assert plugin.ui is not None
+    assert sorted(plugin.manifest.contributes) == ["cli", "migrations", "routes", "traffic", "ui"]
+    assert set(plugin.manifest.config_keys) == set(AgentGatesConfig.model_fields)
+    assert plugin.manifest.getting_started == "https://github.com/mozilla-ai/otari-agent-gates#quick-start"
+
+
 def test_migration_chain_builds_both_tables_on_sqlite(tmp_path: Path) -> None:
     database = tmp_path / "plugin.db"
     alembic_cfg = Config()

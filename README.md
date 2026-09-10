@@ -1,17 +1,90 @@
 # Agent Gates
 
 An [Otari](https://github.com/mozilla-ai/otari) plugin that reviews what your coding
-agent actually did, so you do not have to check its work yourself.
+agent actually did, so you do not have to check its work yourself. A repo states its
+rules once as a **policy**, an ordered list of **gates**, and every Claude Code turn
+is checked against them. A failing verdict blocks the session and feeds the
+violations back to the model as instructions, so Claude Code fixes them and tries
+again, with no human relaying anything. Four gate types are mechanical (free,
+deterministic, run first); the fifth asks a model, either through Otari's own
+providers or through the `claude` CLI login you already have, at no marginal cost.
 
-A Claude Code `Stop` hook sends the turn's own transcript to a running Otari
-deployment, which checks it against a **policy**: an ordered list of **gates**. A
-failing verdict blocks the session and feeds the violations back to the model as
-instructions, so Claude Code fixes them and tries again, with no human relaying
-anything. A `PreToolUse` hook can also deny a banned command before it runs.
+It has two halves. Hooks on your machine give prevention (a `PreToolUse` hook denies
+a banned command before it runs) and the block-and-retry loop (a `Stop` hook sends
+the turn's transcript to the gateway and blocks on a failing verdict). The gateway
+itself grades every agent's traffic that flows through Otari, with nothing installed
+on the client.
 
-Four gate types are mechanical (free, deterministic, run first); the fifth asks a
-model, either through Otari's own providers or through the `claude` CLI login you
-already have, at no marginal cost.
+## Quick start
+
+1. **Install the plugin into Otari.** Open Marketplace in the Otari dashboard and
+   install Agent gates, or run
+
+   ```
+   otari plugins install mozilla-ai/otari-agent-gates
+   ```
+
+   then restart `otari serve`. `otari plugins list` shows it as `loaded`.
+
+2. **Put a `.otari-gates.yml` at the root of a repo.**
+
+   ```yaml
+   # .otari-gates.yml
+   on_unavailable: block
+   gates:
+     - type: command
+       name: no-force-push
+       pattern: "git\\s+push\\b.*?(?:--force(?!-)\\b|(?<!\\S)-f\\b)"
+       mode: must_not_run
+       message: "Never force-push."
+     - type: command
+       name: tests-ran
+       pattern: "pytest"
+       mode: must_run_and_succeed
+       paths: ["src/*", "tests/*"]
+       message: "Run pytest after changing source or tests."
+     - type: llm_judge
+       name: agents-md-compliance
+       judge_backend: subscription
+       rules_file: AGENTS.md
+   ```
+
+3. **Wire the hooks.** Copy the two scripts from `src/otari_agent_gates/hooks/` to
+   your machine (standard library only) and paste this into `~/.claude/settings.json`:
+
+   ```json
+   {
+     "hooks": {
+       "Stop": [
+         {
+           "hooks": [
+             {"type": "command", "command": "python3 /path/to/policy_check_hook.py"}
+           ]
+         }
+       ],
+       "PreToolUse": [
+         {
+           "matcher": "Bash",
+           "hooks": [
+             {"type": "command", "command": "python3 /path/to/pretooluse_hook.py"}
+           ]
+         }
+       ]
+     }
+   }
+   ```
+
+4. **Point the hooks at the gateway.** In the shell Claude Code runs from:
+
+   ```sh
+   export OTARI_URL=https://otari.example.com   # your gateway
+   export OTARI_API_KEY=sk-...                  # an ordinary Otari API key, created in the dashboard
+   export OTARI_POLICY_NAME=team-rules          # the label runs are recorded under
+   export OTARI_CLI_PATH=/path/to/otari         # only when otari is not on PATH
+   ```
+
+5. **Run a Claude Code session**, then open Agent gates in the Otari dashboard
+   sidebar to watch the runs come in.
 
 ## How it works
 
@@ -25,6 +98,41 @@ Claude Code turn ends
   -> verdict recorded in history; non-compliant => hook exits 2 with the violations
   -> Claude Code keeps the session going with those violations as instructions
 ```
+
+### Checking traffic instead of transcripts
+
+An agent that talks to its model through Otari puts every tool call and every
+result on the wire, so the gateway can judge the same gates with nothing
+installed on the client and for every agent at once. Name what to check under
+the plugin's config block:
+
+```yaml
+plugins:
+  agent-gates:
+    traffic:
+      policy: team-rules        # a stored policy, or:
+      gates:                    # inline gates, the same shape as .otari-gates.yml
+        - type: command
+          name: no-force-push
+          pattern: "git\\s+push\\b.*--force"
+          mode: must_not_run
+          message: "Never force-push."
+```
+
+On every inference request the plugin evaluates the `command` and
+`edited_path` gates against the previous turn (the tool calls the agent made
+and the results it got back) and, for each tool call in the model's answer,
+the `must_not_run` gates against the command about to run. Otari records what
+fired on the request's usage row under `plugin_annotations.agent-gates`, with
+a `would_deny` entry where a gate would have refused a call. Nothing is
+altered yet: this is the monitor phase of Otari's traffic seam, and enforcement
+follows it.
+
+The other gate types stay with the hook: `scoped_guidance` needs the loaded
+context, `deterministic` the rendered transcript, and `llm_judge` a model call
+that should not be paid per request. So do the repo's own `.otari-gates.yml`,
+the git working-tree view, and the block-and-retry loop, which only a client
+can drive.
 
 ## Install
 
@@ -66,78 +174,32 @@ An unknown key under `plugins.agent-gates` fails the plugin load (it is listed a
 
 A policy is never declared in `config.yml`. It comes from a repo's own
 `.otari-gates.yml` or from a policy stored through the dashboard; both are read
-fresh on every check.
-
-## Quick start
-
-1. Put a gates file at your repo root. `otari policy generate plan.md` can draft one
-   from an engineering plan; by hand it looks like:
-
-   ```yaml
-   # .otari-gates.yml
-   on_unavailable: block
-   gates:
-     - type: command
-       name: no-force-push
-       pattern: "git\\s+push\\b.*?(?:--force(?!-)\\b|(?<!\\S)-f\\b)"
-       mode: must_not_run
-       message: "Never force-push."
-     - type: command
-       name: tests-ran
-       pattern: "pytest"
-       mode: must_run_and_succeed
-       paths: ["src/*", "tests/*"]
-       message: "Run pytest after changing source or tests."
-     - type: llm_judge
-       name: agents-md-compliance
-       judge_backend: subscription
-       rules_file: AGENTS.md
-   ```
-
-2. Wire the hooks (below), start `otari serve` from the directory holding its
-   `config.yml`, and set `OTARI_POLICY_NAME` in the shell Claude Code inherits
-   from. With a gates file present that name is only the label runs are recorded
-   under.
-
-3. Open Agent gates in the Otari dashboard sidebar to watch runs come in.
+fresh on every check. `otari policy generate plan.md` can draft a gates file from
+an engineering plan. With a gates file present, `OTARI_POLICY_NAME` is only the
+label runs are recorded under.
 
 ## Hooks
 
 Both scripts under `src/otari_agent_gates/hooks/` are standard library only, so
 they can be copied to any machine that has Claude Code and the `otari` CLI on
 `PATH`. Each is a thin dispatcher: the Stop hook calls `otari policy check`, the
-PreToolUse hook calls `otari policy pretooluse`.
-
-`~/.claude/settings.json` (or a project's `.claude/settings.local.json`):
-
-```json
-{
-  "hooks": {
-    "Stop": [
-      {
-        "hooks": [
-          {"type": "command", "command": "python3 /path/to/policy_check_hook.py"}
-        ]
-      }
-    ],
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {"type": "command", "command": "python3 /path/to/pretooluse_hook.py"}
-        ]
-      }
-    ]
-  }
-}
-```
+PreToolUse hook calls `otari policy pretooluse`. The settings JSON is the one in
+the Quick start; it also works in a project's `.claude/settings.local.json`.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `OTARI_POLICY_NAME` | required (Stop hook) | Policy to check, or the label when a gates file is found |
+| `OTARI_URL` | derived from `config.yml` | Gateway base URL, read by `otari policy check` and `give-up` |
+| `OTARI_API_KEY` | `config.yml`'s `master_key` | An ordinary Otari API key for that gateway |
 | `OTARI_CLI_PATH` | `otari` on `PATH` | Override for a non-`PATH` `otari` install |
 | `OTARI_POLICY_CHECK_MAX_ATTEMPTS` | `3` | Retry cap per session, a retry after a block is checked again |
 | `OTARI_POLICY_CHECK_FAIL_MODE` | `open` | `open` never blocks a session over a check that could not run; `closed` does |
+
+`OTARI_URL` and `OTARI_API_KEY` are what make the hooks work from a machine that
+is not the gateway's. Without them, `otari policy check` derives the URL and the
+master key from the `config.yml` it finds, normally the one `otari serve` was
+started with, so on the gateway's own machine nothing needs exporting. `--url`
+and `--api-key` on the command itself override both.
 
 The Stop hook is a retrospective reviewer. The PreToolUse hook is prevention: it
 reads every `must_not_run` command gate from the discovered `.otari-gates.yml`
@@ -145,41 +207,6 @@ reads every `must_not_run` command gate from the discovered `.otari-gates.yml`
 matching Bash call with that gate's own message, so one declaration serves both.
 It never contacts a gateway and fails open on anything it cannot evaluate. Details
 in [docs/hooks.md](docs/hooks.md).
-
-## Checking traffic instead of transcripts
-
-An agent that talks to its model through Otari puts every tool call and every
-result on the wire, so the gateway can judge the same gates with nothing
-installed on the client and for every agent at once. Name what to check under
-the plugin's config block:
-
-```yaml
-plugins:
-  agent-gates:
-    traffic:
-      policy: team-rules        # a stored policy, or:
-      gates:                    # inline gates, the same shape as .otari-gates.yml
-        - type: command
-          name: no-force-push
-          pattern: "git\\s+push\\b.*--force"
-          mode: must_not_run
-          message: "Never force-push."
-```
-
-On every inference request the plugin evaluates the `command` and
-`edited_path` gates against the previous turn (the tool calls the agent made
-and the results it got back) and, for each tool call in the model's answer,
-the `must_not_run` gates against the command about to run. Otari records what
-fired on the request's usage row under `plugin_annotations.agent-gates`, with
-a `would_deny` entry where a gate would have refused a call. Nothing is
-altered yet: this is the monitor phase of Otari's traffic seam, and enforcement
-follows it.
-
-The other gate types stay with the hook: `scoped_guidance` needs the loaded
-context, `deterministic` the rendered transcript, and `llm_judge` a model call
-that should not be paid per request. So do the repo's own `.otari-gates.yml`,
-the git working-tree view, and the block-and-retry loop, which only a client
-can drive.
 
 ## Gate types
 
