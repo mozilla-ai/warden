@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+      # Resolves gateway from mozilla-ai/otari per [tool.uv.sources]; the tests
+      # need the plugin seam (gateway.plugins), so this job goes green once that
+      # ships on main.
+      - run: uv sync --group dev
+      - run: uv run ruff check src tests
+      - run: uv run ruff format --check src tests
+      - run: uv run pytest tests -q
+
+  ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm --dir web install --frozen-lockfile
+      - run: pnpm --dir web run lint
+      - run: pnpm --dir web run build
+      # The bundle is committed so an archive install ships a working page; a
+      # web/ change must rebuild it.
+      - run: git diff --exit-code -- src/otari_agent_gates/static

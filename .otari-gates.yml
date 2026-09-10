@@ -1,0 +1,52 @@
+on_unavailable: block
+gates:
+  # The PreToolUse hook denies this before it runs; the Stop hook is the backstop.
+  - type: command
+    name: no-force-push
+    pattern: "git\\s+push\\b.*?(?:--force(?!-)\\b|(?<!\\S)-f\\b)"
+    mode: must_not_run
+    message: "Never force-push. Use --force-with-lease if you must rewrite a branch."
+  - type: command
+    name: lint-after-python-changes
+    pattern: "make lint|ruff (check|format)"
+    mode: must_run_and_succeed
+    paths: ["src/*", "tests/*"]
+    message: "Run `make lint` after changing Python under src/ or tests/."
+  - type: command
+    name: tests-after-python-changes
+    pattern: "pytest"
+    mode: must_run_and_succeed
+    paths: ["src/*", "tests/*"]
+    message: "Run the tests after changing Python under src/ or tests/."
+  - type: command
+    name: web-lint-after-web-changes
+    pattern: "pnpm --dir web run lint|pnpm run lint|make ui"
+    mode: must_run_and_succeed
+    paths: ["web/*"]
+    message: "Run `pnpm --dir web run lint` after changing the UI source."
+  - type: edited_path
+    name: static-bundle-not-hand-edited
+    pattern: "src/otari_agent_gates/static/"
+    mode: must_not_edit
+    message: "Do not hand-edit src/otari_agent_gates/static/; it is built from web/ by `make ui`."
+  - type: edited_path
+    name: shipped-migration-not-edited
+    pattern: "migrations/versions/0001_initial\\.py$"
+    mode: must_not_edit
+    message: "Do not edit a shipped migration; add a new revision under migrations/versions/."
+  - type: llm_judge
+    name: hooks-stay-stdlib-only
+    judge_backend: subscription
+    rules: "If a file under src/otari_agent_gates/hooks/ is modified, the diff adds no import of a package outside the Python standard library (no gateway, otari_agent_gates, pydantic, yaml, or similar)."
+  - type: llm_judge
+    name: comments-non-narrative
+    judge_backend: subscription
+    rules: "Newly added or modified comments and docstrings explain a non-obvious constraint, invariant, or workaround rather than restating what the code does, narrating the change being made, or describing prior behavior."
+  - type: llm_judge
+    name: no-secret-values-logged-or-leaked
+    judge_backend: subscription
+    rules: "The diff does not add logging of secrets, tokens, or API keys, and does not add a response path that exposes a provider's or database's own error text to an API caller."
+  - type: llm_judge
+    name: prose-style
+    judge_backend: subscription
+    rules: "Newly written prose in docs, comments, docstrings, and commit messages uses US English spelling and does not use em dashes or double hyphens as sentence separators (CLI flags like --force are exempt)."

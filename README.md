@@ -1,0 +1,219 @@
+# Agent Gates
+
+An [Otari](https://github.com/mozilla-ai/otari) plugin that reviews what your coding
+agent actually did, so you do not have to check its work yourself.
+
+A Claude Code `Stop` hook sends the turn's own transcript to a running Otari
+deployment, which checks it against a **policy**: an ordered list of **gates**. A
+failing verdict blocks the session and feeds the violations back to the model as
+instructions, so Claude Code fixes them and tries again, with no human relaying
+anything. A `PreToolUse` hook can also deny a banned command before it runs.
+
+Four gate types are mechanical (free, deterministic, run first); the fifth asks a
+model, either through Otari's own providers or through the `claude` CLI login you
+already have, at no marginal cost.
+
+## How it works
+
+```
+Claude Code turn ends
+  -> Stop hook (hooks/policy_check_hook.py, standard library only)
+  -> otari policy check <name> --claude-transcript <path>
+       reads the transcript, extracts the current turn, discovers .otari-gates.yml
+  -> POST /api/v1/plugins/agent-gates/policy-checks/<name>/check
+       mechanical gates first; judge gates only if they all pass
+  -> verdict recorded in history; non-compliant => hook exits 2 with the violations
+  -> Claude Code keeps the session going with those violations as instructions
+```
+
+## Install
+
+Agent Gates needs an Otari deployment with the plugin seam (`gateway.plugins`).
+Then any of:
+
+- **Dashboard.** Open Marketplace in the Otari dashboard, find Agent gates, and
+  install it. Restart the gateway when the banner says so. This needs
+  `plugins.allow_install: true` in the gateway's `config.yml`.
+- **CLI.** `otari plugins install mozilla-ai/otari-agent-gates`, then restart
+  `otari serve`. This writes into the gateway's plugins directory.
+- **Package.** Into the same environment Otari runs in:
+  `pip install otari-agent-gates` or `uv pip install otari-agent-gates`. Otari
+  discovers it through the `otari.plugins` entry point on the next start.
+
+On startup (with `auto_migrate`, the default) or on `otari migrate`, the plugin
+creates its two tables through its own Alembic chain, stamped in
+`alembic_version_agent_gates`, separate from Otari's own. `otari plugins list`
+and `GET /api/v1/plugins` show it as `loaded`.
+
+Standalone mode only. In hybrid mode the platform owns credential resolution, so
+a `provider`-backend judge would have nothing local to resolve against.
+
+## Configuration
+
+Loading the plugin is the switch; there is no `enabled` flag. Everything else is
+optional:
+
+```yaml
+# config.yml
+plugins:
+  disabled: []                  # add "agent-gates" to turn it off without uninstalling
+  agent-gates:
+    judge_timeout_seconds: 120  # cap on one subscription-backend judge call
+```
+
+An unknown key under `plugins.agent-gates` fails the plugin load (it is listed as
+`failed` with the reason, and the gateway boots without it).
+
+A policy is never declared in `config.yml`. It comes from a repo's own
+`.otari-gates.yml` or from a policy stored through the dashboard; both are read
+fresh on every check.
+
+## Quick start
+
+1. Put a gates file at your repo root. `otari policy generate plan.md` can draft one
+   from an engineering plan; by hand it looks like:
+
+   ```yaml
+   # .otari-gates.yml
+   on_unavailable: block
+   gates:
+     - type: command
+       name: no-force-push
+       pattern: "git\\s+push\\b.*?(?:--force(?!-)\\b|(?<!\\S)-f\\b)"
+       mode: must_not_run
+       message: "Never force-push."
+     - type: command
+       name: tests-ran
+       pattern: "pytest"
+       mode: must_run_and_succeed
+       paths: ["src/*", "tests/*"]
+       message: "Run pytest after changing source or tests."
+     - type: llm_judge
+       name: agents-md-compliance
+       judge_backend: subscription
+       rules_file: AGENTS.md
+   ```
+
+2. Wire the hooks (below), start `otari serve` from the directory holding its
+   `config.yml`, and set `OTARI_POLICY_NAME` in the shell Claude Code inherits
+   from. With a gates file present that name is only the label runs are recorded
+   under.
+
+3. Open Agent gates in the Otari dashboard sidebar to watch runs come in.
+
+## Hooks
+
+Both scripts under `src/otari_agent_gates/hooks/` are standard library only, so
+they can be copied to any machine that has Claude Code and the `otari` CLI on
+`PATH`. Each is a thin dispatcher: the Stop hook calls `otari policy check`, the
+PreToolUse hook calls `otari policy pretooluse`.
+
+`~/.claude/settings.json` (or a project's `.claude/settings.local.json`):
+
+```json
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {"type": "command", "command": "python3 /path/to/policy_check_hook.py"}
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {"type": "command", "command": "python3 /path/to/pretooluse_hook.py"}
+        ]
+      }
+    ]
+  }
+}
+```
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `OTARI_POLICY_NAME` | required (Stop hook) | Policy to check, or the label when a gates file is found |
+| `OTARI_CLI_PATH` | `otari` on `PATH` | Override for a non-`PATH` `otari` install |
+| `OTARI_POLICY_CHECK_MAX_ATTEMPTS` | `3` | Retry cap per session, on top of Claude Code's `stop_hook_active` guard |
+| `OTARI_POLICY_CHECK_FAIL_MODE` | `open` | `open` never blocks a session over a check that could not run; `closed` does |
+
+The Stop hook is a retrospective reviewer. The PreToolUse hook is prevention: it
+reads every `must_not_run` command gate from the discovered `.otari-gates.yml`
+(skipping any with a `paths` condition, which needs the whole turn) and denies a
+matching Bash call with that gate's own message, so one declaration serves both.
+It never contacts a gateway and fails open on anything it cannot evaluate. Details
+in [docs/hooks.md](docs/hooks.md).
+
+## Gate types
+
+| Type | Checks | Evidence |
+| --- | --- | --- |
+| `deterministic` | A regex against the transcript's rendered text | Transcript excerpt |
+| `command` | A regex against a Bash command that actually ran, and whether it errored; optional `paths` condition | Structured `tool_use`/`tool_result` blocks |
+| `scoped_guidance` | A directory's `AGENTS.md`/`CLAUDE.md` was loaded before a file under it was edited | `nested_memory` attachments plus `Edit`/`Write`/`NotebookEdit` calls |
+| `edited_path` | A regex against which files this turn edited | `Edit`/`Write`/`NotebookEdit` calls |
+| `llm_judge` | Free-text rules, judged by a model | Transcript excerpt |
+
+The first four run first; any failure skips every judge gate that turn. Judge gates
+run concurrently and aggregate. Field reference in [docs/gates.md](docs/gates.md).
+
+## Judge backends
+
+- **`provider`** (default) resolves `judge_model` through Otari's own provider
+  configuration, a paid API or a free local model as you prefer.
+- **`subscription`** shells out to the locally installed `claude` CLI under
+  `--safe-mode`, using whatever session is already logged in, at zero marginal
+  cost. `otari serve` must run on the same machine as that login. The CLI's own
+  envelope reports what the tokens would have cost through the API; the dashboard
+  shows that figure as an equivalent, not a bill.
+
+## API
+
+Mounted under `/api/v1/plugins/agent-gates/policy-checks`:
+
+| Method and path | Auth | Purpose |
+| --- | --- | --- |
+| `POST /{policy_name}/check` | API key or master key | Evaluate a transcript excerpt (inline `spec` wins over a stored policy) |
+| `POST /{policy_name}/give-up` | API key or master key | Record that a session's retry loop hit its cap |
+| `GET/POST /policies`, `GET/PUT/DELETE /policies/{name}` | operator | Stored policies |
+| `GET /history`, `/history/count`, `/history/{id}`, `POST /history/{id}/dismiss`, `DELETE /history?older_than_days=N` | operator | Run history |
+| `GET /repos`, `/branches`, `/sessions` | operator | Grouped summaries with run counts and cost totals |
+
+Operator routes take the dashboard session cookie or the master key, like Otari's
+own management routes. The dashboard page is served at `/plugins/agent-gates/ui/`.
+
+## Development
+
+```
+git clone https://github.com/mozilla-ai/otari-agent-gates
+cd otari-agent-gates
+uv sync          # installs gateway from mozilla-ai/otari main, per [tool.uv.sources]
+make lint        # ruff check + format check
+make test        # pytest, SQLite only, no Docker
+make ui          # pnpm install + build; commits land in src/otari_agent_gates/static/
+```
+
+Until the plugin seam ships on Otari's `main`, `uv sync` resolves a gateway that
+has no `gateway.plugins` module and the tests cannot import. Run them against a
+local checkout of the seam branch instead: install this repo editable into that
+checkout's environment and use its interpreter.
+
+```
+uv pip install --python /path/to/otari/.venv/bin/python -e .
+/path/to/otari/.venv/bin/python -m pytest tests -q
+```
+
+The route tests run over SQLite through the plugin's own migration chain, so
+nothing here needs PostgreSQL. `web/` is a small Vite + React app on HeroUI v3 and
+Tailwind v4 with hash routing (it lives in an iframe under a static mount); see
+[web/README.md](web/README.md). The built bundle is committed so an install from
+the marketplace or GitHub archive ships a working page.
+
+More: [docs/gates.md](docs/gates.md), [docs/hooks.md](docs/hooks.md),
+[docs/dashboard.md](docs/dashboard.md).
+
+## License
+
+Apache-2.0. Copyright Mozilla.ai.

@@ -1,0 +1,10 @@
+[plugin]
+name = "agent-gates"
+version = "0.1.0"
+description = "Checks a coding agent's turn against a repo's stated rules, from a Claude Code Stop hook."
+package = "otari_agent_gates"
+homepage = "https://github.com/mozilla-ai/otari-agent-gates"
+
+[plugin.ui]
+path = "static"
+label = "Agent gates"

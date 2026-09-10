@@ -1,0 +1,68 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "otari-agent-gates"
+version = "0.1.0"
+description = "Otari plugin that checks a coding agent's turn against a repo's stated rules, from a Claude Code Stop hook."
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "Mozilla.ai" }]
+requires-python = ">=3.13"
+keywords = ["otari", "otari-plugin", "claude-code", "agent", "guardrails"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Framework :: FastAPI",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Software Development :: Quality Assurance",
+]
+# Everything the plugin imports at runtime (fastapi, sqlalchemy, alembic, click,
+# pydantic, pyyaml, any-llm) ships with Otari, which is the only place this
+# package runs. Nothing is redeclared so a pin here can never fight Otari's.
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/mozilla-ai/otari-agent-gates"
+Repository = "https://github.com/mozilla-ai/otari-agent-gates"
+Issues = "https://github.com/mozilla-ai/otari-agent-gates/issues"
+
+[project.entry-points."otari.plugins"]
+agent-gates = "otari_agent_gates"
+
+[dependency-groups]
+dev = [
+  "gateway",
+  "pytest>=8.3",
+  "pytest-asyncio>=0.24",
+  "ruff>=0.9",
+]
+
+[tool.uv.sources]
+gateway = { git = "https://github.com/mozilla-ai/otari.git", branch = "main" }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/otari_agent_gates"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/otari_agent_gates", "tests", "README.md", "LICENSE", "docs"]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 120
+src = ["src", "tests"]
+extend-exclude = ["web/"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "PERF"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["otari_agent_gates"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
