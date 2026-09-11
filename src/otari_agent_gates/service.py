@@ -15,9 +15,7 @@ from typing import Any, Literal, cast
 
 from any_llm import acompletion
 from any_llm.types.completion import ChatCompletionMessage
-from gateway.core.config import GatewayConfig
-from gateway.log_config import logger
-from gateway.services.provider_kwargs import resolve_provider_selector
+from gateway.plugins.api import GatewayConfig, logger, resolve_provider_selector
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from sqlalchemy import delete, func, select
 from sqlalchemy.engine import CursorResult

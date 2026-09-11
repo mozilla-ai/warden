@@ -84,7 +84,7 @@ on the client.
    ```
 
 5. **Run a Claude Code session**, then open Agent gates in the Otari dashboard
-   sidebar to watch the runs come in.
+   sidebar, under Build > Tools, to watch the runs come in.
 
 ## How it works
 
@@ -122,11 +122,12 @@ plugins:
 On every inference request the plugin evaluates the `command` and
 `edited_path` gates against the previous turn (the tool calls the agent made
 and the results it got back) and, for each tool call in the model's answer,
-the `must_not_run` gates against the command about to run. Otari records what
-fired on the request's usage row under `plugin_annotations.agent-gates`, with
-a `would_deny` entry where a gate would have refused a call. Nothing is
-altered yet: this is the monitor phase of Otari's traffic seam, and enforcement
-follows it.
+the `must_not_run` gates against the command about to run. A call a gate
+refuses never reaches the agent: Otari removes it from the response (holding
+it back in a stream until it is whole) and puts the gate's message in its
+place, so the model sees why and tries something else. What fired, and what
+was refused, is recorded on the request's usage row under
+`plugin_annotations.agent-gates` and shown on the dashboard's Activity page.
 
 The other gate types stay with the hook: `scoped_guidance` needs the loaded
 context, `deterministic` the rendered transcript, and `llm_judge` a model call
@@ -136,8 +137,10 @@ can drive.
 
 ## Install
 
-Agent Gates needs an Otari deployment with the plugin seam (`gateway.plugins`).
-Then any of:
+Agent Gates needs an Otari deployment with the plugin seam (`gateway.plugins`,
+plugin API 1). It runs in standalone mode; a hybrid gateway lists it as
+disabled, since a `provider`-backend judge has nothing local to resolve
+against there. Then any of:
 
 - **Dashboard.** Open Marketplace in the Otari dashboard, find Agent gates, and
   install it. Restart the gateway when the banner says so. This needs
@@ -153,9 +156,6 @@ creates its two tables through its own Alembic chain, stamped in
 `alembic_version_agent_gates`, separate from Otari's own. `otari plugins list`
 and `GET /api/v1/plugins` show it as `loaded`.
 
-Standalone mode only. In hybrid mode the platform owns credential resolution, so
-a `provider`-backend judge would have nothing local to resolve against.
-
 ## Configuration
 
 Loading the plugin is the switch; there is no `enabled` flag. Everything else is
@@ -169,8 +169,11 @@ plugins:
     judge_timeout_seconds: 120  # cap on one subscription-backend judge call
 ```
 
-An unknown key under `plugins.agent-gates` fails the plugin load (it is listed as
-`failed` with the reason, and the gateway boots without it).
+`judge_timeout_seconds` is declared in the manifest, so the Marketplace's
+Installed list shows it on the plugin's card, where an operator can change it
+without a restart; a value set there wins over `config.yml`. An unknown key
+under `plugins.agent-gates` fails the plugin load (it is listed as `failed`
+with the reason, and the gateway boots without it).
 
 A policy is never declared in `config.yml`. It comes from a repo's own
 `.otari-gates.yml` or from a policy stored through the dashboard; both are read

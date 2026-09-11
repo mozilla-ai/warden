@@ -67,7 +67,10 @@ def test_manifest_matches_the_package() -> None:
     assert manifest["name"] == "agent-gates"
     assert manifest["package"] == "otari_agent_gates"
     assert manifest["version"] == otari_agent_gates.__version__
-    assert (PACKAGE_DIR / manifest["ui"]["path"] / "index.html").is_file()
+    assert manifest["plugin_api"] == 1
+    assert manifest["modes"] == ["standalone"]
+    assert [page["id"] for page in manifest["pages"]] == ["gates"]
+    assert (PACKAGE_DIR / manifest["pages"][0]["path"] / "index.html").is_file()
 
 
 def test_manifest_declares_everything_register_adds(tmp_path: Path) -> None:
@@ -95,7 +98,10 @@ def test_manifest_declares_everything_register_adds(tmp_path: Path) -> None:
     assert plugin.routers and plugin.cli_groups and plugin.migrations and plugin.observers
     assert plugin.ui is not None
     assert sorted(plugin.manifest.contributes) == ["cli", "migrations", "routes", "traffic", "ui"]
-    assert set(plugin.manifest.config_keys) == set(AgentGatesConfig.model_fields)
+    assert set(plugin.manifest.all_config_keys) == set(AgentGatesConfig.model_fields)
+    assert plugin.manifest.settings["judge_timeout_seconds"].default == AgentGatesConfig().judge_timeout_seconds
+    assert plugin.config["judge_timeout_seconds"] == 5
+    assert plugin.pages[0].manifest.parent == "tools"
     assert plugin.manifest.getting_started == "https://github.com/mozilla-ai/otari-agent-gates#quick-start"
 
 

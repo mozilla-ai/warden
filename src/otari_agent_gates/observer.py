@@ -22,8 +22,7 @@ import time
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any
 
-from gateway.log_config import logger
-from gateway.plugins.traffic import RequestDecision, ToolCallDecision
+from gateway.plugins.api import RequestDecision, ToolCallDecision, logger
 
 from otari_agent_gates import settings
 from otari_agent_gates.models import CommandGateSpec, EditedPathGateSpec, PolicyCheckSpec
@@ -36,7 +35,7 @@ from otari_agent_gates.service import (
 from otari_agent_gates.transcript import strip_inert_shell_regions
 
 if TYPE_CHECKING:
-    from gateway.plugins.traffic import RequestEvent, ToolCallEvent, Turn
+    from gateway.plugins.api import RequestEvent, ToolCallEvent, Turn
 
 _EDIT_TOOL_PATH_FIELDS = {"Edit": "file_path", "Write": "file_path", "NotebookEdit": "notebook_path"}
 _SPEC_CACHE_SECONDS = 60.0

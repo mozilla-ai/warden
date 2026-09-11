@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from gateway.plugins.traffic import (
+from gateway.plugins.api import (
     Caller,
     Conversation,
     RequestEvent,

@@ -15,9 +15,14 @@ from typing import Annotated, Any, cast
 
 import yaml
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from gateway.api.deps import get_config, get_db, require_deployment_operator, verify_api_key_or_master_key
-from gateway.core.config import GatewayConfig
-from gateway.models.entities import APIKey
+from gateway.plugins.api import (
+    APIKey,
+    GatewayConfig,
+    get_config,
+    get_db,
+    require_deployment_operator,
+    verify_api_key_or_master_key,
+)
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession

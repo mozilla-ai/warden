@@ -19,7 +19,7 @@ from typing import Any, Literal, cast
 
 import click
 import yaml
-from gateway.core.config import load_config
+from gateway.plugins.api import load_config
 from pydantic import ValidationError
 
 from otari_agent_gates.models import GATES_FILENAME, CommandGateSpec, PolicyCheckSpec
