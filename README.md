@@ -15,6 +15,13 @@ the turn's transcript to the gateway and blocks on a failing verdict). The gatew
 itself grades every agent's traffic that flows through Otari, with nothing installed
 on the client.
 
+![Warden inside the Otari dashboard: the Marketplace card and its settings, the Warden page with its runs, and an Activity row where a forced push was refused on the wire](docs/demo.gif)
+
+Above: Warden installed from the Marketplace with its settings editable in
+place, its page under Build > Tools listing reviewed runs, and the Activity
+log showing a turn where the gateway refused a `git push --force` before the
+agent could run it.
+
 ## Quick start
 
 1. **Install the plugin into Otari.** Open Marketplace in the Otari dashboard and
