@@ -35,8 +35,8 @@ def register(ctx: PluginContext) -> None:
     config = settings.configure(ctx.config)
     if hasattr(ctx, "on_settings_change"):
         ctx.on_settings_change(settings.configure)
-    ctx.add_router(router)
-    ctx.add_router(operator_router)
+    ctx.add_router(router, auth="api_key")  # what an agent's hook calls, with its API key
+    ctx.add_router(operator_router)  # the dashboard's, behind the operator gate
     ctx.add_cli(warden)
     ctx.add_migrations(Path(__file__).parent / "migrations")
     # Only where the config names something to check, and only on an Otari that

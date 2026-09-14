@@ -24,12 +24,12 @@ class _FakeContext:
         self.name = "warden"
         self.config = config
         self.container = None
-        self.routers: list[APIRouter] = []
+        self.routers: list[tuple[APIRouter, str]] = []
         self.cli_groups: list[click.Group] = []
         self.migrations: list[Path] = []
 
-    def add_router(self, router: APIRouter) -> None:
-        self.routers.append(router)
+    def add_router(self, router: APIRouter, *, auth: str = "operator") -> None:
+        self.routers.append((router, auth))
 
     def add_cli(self, group: click.Group) -> None:
         self.cli_groups.append(group)
@@ -47,7 +47,11 @@ def test_register_contributes_routers_cli_and_migrations() -> None:
     ctx = _FakeContext({"judge_timeout_seconds": 30})
     otari_warden.register(ctx)  # type: ignore[arg-type]
 
-    assert [router.prefix for router in ctx.routers] == ["/policy-checks", "/policy-checks"]
+    # The hook's router is open to API keys; the dashboard's stays behind the operator gate.
+    assert [(router.prefix, auth) for router, auth in ctx.routers] == [
+        ("/policy-checks", "api_key"),
+        ("/policy-checks", "operator"),
+    ]
     assert [group.name for group in ctx.cli_groups] == ["warden"]
     assert sorted(ctx.cli_groups[0].commands) == ["check", "generate", "give-up", "pretooluse"]
     assert ctx.migrations == [PACKAGE_DIR / "migrations"]

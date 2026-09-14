@@ -11,8 +11,8 @@ what the wire carries and nothing else. A ``scoped_guidance`` gate needs the
 loaded-context list, a ``deterministic`` gate the rendered transcript, and a
 judge gate a model call per request, so those stay with the hook.
 
-Decisions are recorded, not applied: Otari writes what this annotates onto the
-usage row, and a ``deny`` is written there as ``would_deny``.
+A ``deny`` replaces the tool call with the message before the client sees it;
+Otari writes it onto the usage row as ``denied``, with whatever this annotates.
 """
 
 from __future__ import annotations
@@ -172,7 +172,7 @@ class WardenObserver:
 async def _load_stored_policy(name: str) -> PolicyCheckSpec | None:
     """Read a stored policy on a session of the plugin's own; ``None`` when it cannot."""
     try:
-        from gateway.core.database import create_session
+        from gateway.plugins.api import create_session
 
         from otari_warden.service import get_stored_policy_spec
 

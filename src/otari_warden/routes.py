@@ -16,12 +16,12 @@ from typing import Annotated, Any, cast
 import yaml
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from gateway.plugins.api import (
-    APIKey,
+    Caller,
     GatewayConfig,
+    get_caller,
     get_config,
     get_db,
     require_deployment_operator,
-    verify_api_key_or_master_key,
 )
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func, select
@@ -129,7 +129,7 @@ class PolicyCheckResponse(BaseModel):
 async def check_policy(
     policy_name: str,
     body: PolicyCheckRequest,
-    auth_result: Annotated[tuple[APIKey | None, bool], Depends(verify_api_key_or_master_key)],
+    _caller: Annotated[Caller, Depends(get_caller)],
     config: Annotated[GatewayConfig, Depends(get_config)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> PolicyCheckResponse:
@@ -187,7 +187,7 @@ class PolicyCheckGiveUpRequest(BaseModel):
 async def give_up_policy_check(
     policy_name: str,
     body: PolicyCheckGiveUpRequest,
-    auth_result: Annotated[tuple[APIKey | None, bool], Depends(verify_api_key_or_master_key)],
+    _caller: Annotated[Caller, Depends(get_caller)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> None:
     """Record that a session's Stop-hook retry loop ended without reaching compliant.
