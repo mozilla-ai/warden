@@ -1,8 +1,8 @@
-"""The plugin's API, mounted by Otari under ``/api/v1/plugins/agent-gates``.
+"""The plugin's API, mounted by Otari under ``/api/v1/plugins/warden``.
 
 ``router`` carries the two data-plane actions (``check`` and ``give-up``), which
 authenticate with an Otari API key or the master key like any other data-plane
-call and are what ``otari policy check`` talks to. ``operator_router`` carries the
+call and are what ``otari warden check`` talks to. ``operator_router`` carries the
 policy and history reads and writes the dashboard uses, behind
 ``require_deployment_operator``, so the two auth rules live on two routers rather
 than one overriding the other per route.
@@ -27,8 +27,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from otari_agent_gates.models import JudgeGateSpec, PolicyCheckRecord, PolicyCheckSpec
-from otari_agent_gates.service import (
+from otari_warden.models import JudgeGateSpec, PolicyCheckRecord, PolicyCheckSpec
+from otari_warden.service import (
     ExecutedCommand,
     GateOutcome,
     PolicyCheckUnavailableError,
@@ -49,10 +49,10 @@ from otari_agent_gates.service import (
 
 ROUTER_PREFIX = "/policy-checks"
 
-router = APIRouter(prefix=ROUTER_PREFIX, tags=["agent-gates"])
+router = APIRouter(prefix=ROUTER_PREFIX, tags=["warden"])
 operator_router = APIRouter(
     prefix=ROUTER_PREFIX,
-    tags=["agent-gates"],
+    tags=["warden"],
     dependencies=[Depends(require_deployment_operator)],
 )
 
@@ -192,7 +192,7 @@ async def give_up_policy_check(
 ) -> None:
     """Record that a session's Stop-hook retry loop ended without reaching compliant.
 
-    Called by ``otari policy give-up`` when the hook's attempt cap is hit. No policy lookup:
+    Called by ``otari warden give-up`` when the hook's attempt cap is hit. No policy lookup:
     nothing is evaluated, so ``policy_name`` is recorded purely as a label.
     """
     await record_give_up(db, policy_name=policy_name, session_id=body.session_id, repo=body.repo, branch=body.branch)

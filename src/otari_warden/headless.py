@@ -2,7 +2,7 @@
 
 Two callers: the ``subscription`` judge backend in ``service.py`` (run inside the
 gateway process, so that process must sit on the same machine as the ``claude``
-login) and ``otari policy generate``. Both want a one-shot ``claude -p`` call
+login) and ``otari warden generate``. Both want a one-shot ``claude -p`` call
 whose reply parses as JSON, billed to whatever session is already logged in.
 
 Every invocation passes ``--safe-mode``, not ``--bare``. Both suppress hook

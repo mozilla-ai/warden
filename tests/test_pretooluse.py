@@ -1,4 +1,4 @@
-"""``otari policy pretooluse`` and the thin hook script that shells out to it."""
+"""``otari warden pretooluse`` and the thin hook script that shells out to it."""
 
 from __future__ import annotations
 
@@ -14,9 +14,9 @@ from typing import Any
 import pytest
 from click.testing import CliRunner
 
-from otari_agent_gates import cli as gates_cli
+from otari_warden import cli as gates_cli
 
-_HOOK_PATH = Path(__file__).resolve().parents[1] / "src" / "otari_agent_gates" / "hooks" / "pretooluse_hook.py"
+_HOOK_PATH = Path(__file__).resolve().parents[1] / "src" / "otari_warden" / "hooks" / "pretooluse_hook.py"
 
 _GATES = """
 on_unavailable: block
@@ -63,7 +63,7 @@ def gates_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 
 def test_pretooluse_denies_a_banned_command(gates_dir: Path) -> None:
-    result = CliRunner().invoke(gates_cli.policy, ["pretooluse"], input=_payload("git push --force origin main"))
+    result = CliRunner().invoke(gates_cli.warden, ["pretooluse"], input=_payload("git push --force origin main"))
     assert result.exit_code == 2
     decision = json.loads(result.stderr.strip())
     assert decision["hookSpecificOutput"]["permissionDecision"] == "deny"
@@ -71,32 +71,32 @@ def test_pretooluse_denies_a_banned_command(gates_dir: Path) -> None:
 
 
 def test_pretooluse_allows_a_quoted_mention(gates_dir: Path) -> None:
-    result = CliRunner().invoke(gates_cli.policy, ["pretooluse"], input=_payload('echo "git push --force"'))
+    result = CliRunner().invoke(gates_cli.warden, ["pretooluse"], input=_payload('echo "git push --force"'))
     assert result.exit_code == 0
 
 
 def test_pretooluse_ignores_gates_it_cannot_enforce(gates_dir: Path) -> None:
-    result = CliRunner().invoke(gates_cli.policy, ["pretooluse"], input=_payload("rm -rf web/dist"))
+    result = CliRunner().invoke(gates_cli.warden, ["pretooluse"], input=_payload("rm -rf web/dist"))
     assert result.exit_code == 0
 
 
 def test_pretooluse_allows_other_tools_and_malformed_input(gates_dir: Path) -> None:
     assert (
-        CliRunner().invoke(gates_cli.policy, ["pretooluse"], input=_payload("git push -f", tool="Edit")).exit_code == 0
+        CliRunner().invoke(gates_cli.warden, ["pretooluse"], input=_payload("git push -f", tool="Edit")).exit_code == 0
     )
-    assert CliRunner().invoke(gates_cli.policy, ["pretooluse"], input="not json").exit_code == 0
+    assert CliRunner().invoke(gates_cli.warden, ["pretooluse"], input="not json").exit_code == 0
 
 
 def test_pretooluse_fails_open_without_a_gates_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
-    result = CliRunner().invoke(gates_cli.policy, ["pretooluse"], input=_payload("git push --force"))
+    result = CliRunner().invoke(gates_cli.warden, ["pretooluse"], input=_payload("git push --force"))
     assert result.exit_code == 0
 
 
 def test_pretooluse_fails_open_on_an_invalid_gates_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     (tmp_path / ".otari-gates.yml").write_text("gates: []\n", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
-    result = CliRunner().invoke(gates_cli.policy, ["pretooluse"], input=_payload("git push --force"))
+    result = CliRunner().invoke(gates_cli.warden, ["pretooluse"], input=_payload("git push --force"))
     assert result.exit_code == 0
 
 
@@ -122,7 +122,7 @@ def test_hook_forwards_stdin_and_relays_a_deny(
     monkeypatch.setenv("OTARI_CLI_PATH", "/opt/otari")
     monkeypatch.setattr(sys, "stdin", io.StringIO(_payload("git push -f")))
     assert hook.main() == 2
-    assert seen["argv"] == ["/opt/otari", "policy", "pretooluse"]
+    assert seen["argv"] == ["/opt/otari", "warden", "pretooluse"]
     assert json.loads(seen["input"])["tool_input"]["command"] == "git push -f"
     assert json.loads(capsys.readouterr().err)["systemMessage"] == "no"
 

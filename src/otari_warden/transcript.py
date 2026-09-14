@@ -1,6 +1,6 @@
 """Extract the current turn from a Claude Code session transcript.
 
-Used by ``otari policy check``, which runs on the machine that holds the
+Used by ``otari warden check``, which runs on the machine that holds the
 transcript file: it reads the JSONL, extracts what the gates need, and sends only
 that onward. A running gateway never reads the file itself.
 """

@@ -8,13 +8,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from otari_agent_gates.models import AgentGatesConfig
+from otari_warden.models import WardenConfig
 
-current = AgentGatesConfig()
+current = WardenConfig()
 
 
-def configure(raw: dict[str, Any]) -> AgentGatesConfig:
-    """Validate ``raw`` (the ``plugins.agent-gates`` block) and make it the active config."""
+def configure(raw: dict[str, Any]) -> WardenConfig:
+    """Validate ``raw`` (the ``plugins.warden`` block) and make it the active config."""
     global current  # noqa: PLW0603
-    current = AgentGatesConfig.model_validate(raw)
+    current = WardenConfig.model_validate(raw)
     return current

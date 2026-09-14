@@ -1,5 +1,5 @@
 {
-  "name": "otari-agent-gates-ui",
+  "name": "otari-warden-ui",
   "private": true,
   "version": "0.1.0",
   "type": "module",

@@ -1,4 +1,4 @@
-"""Unit tests for `otari policy check` / `otari policy generate` (Phase 3).
+"""Unit tests for `otari warden check` / `otari warden generate` (Phase 3).
 
 `policy check` is an HTTP client (see its docstring in `cli.py`), so these mock
 `urllib.request.urlopen` and `claude_transcript.extract_excerpt` rather than exercising
@@ -20,8 +20,8 @@ import pytest
 from click.testing import CliRunner
 from gateway.core.config import GatewayConfig
 
-import otari_agent_gates.cli as gateway_cli
-from otari_agent_gates.headless import ClaudeHeadlessResult
+import otari_warden.cli as gateway_cli
+from otari_warden.headless import ClaudeHeadlessResult
 
 
 @pytest.fixture(autouse=True)
@@ -64,7 +64,7 @@ def _stub_config(monkeypatch: pytest.MonkeyPatch, *, host: str = "127.0.0.1", ma
 
 
 def _stub_excerpt(monkeypatch: pytest.MonkeyPatch, excerpt: str = "some transcript text") -> None:
-    monkeypatch.setattr("otari_agent_gates.transcript.extract_excerpt", lambda *_a, **_k: excerpt)
+    monkeypatch.setattr("otari_warden.transcript.extract_excerpt", lambda *_a, **_k: excerpt)
 
 
 def _write_transcript(tmp_path: Path) -> str:
@@ -88,7 +88,7 @@ def test_policy_check_compliant_exits_zero(tmp_path: Path, monkeypatch: pytest.M
     body = {"policy": "p", "checked": True, "compliant": True, "violations": [], "guidance": ""}
     monkeypatch.setattr("urllib.request.urlopen", lambda *_a, **_k: _FakeResponse(200, body))
 
-    result = CliRunner().invoke(gateway_cli.policy, ["check", "p", "--claude-transcript", _write_transcript(tmp_path)])
+    result = CliRunner().invoke(gateway_cli.warden, ["check", "p", "--claude-transcript", _write_transcript(tmp_path)])
     assert result.exit_code == 0
     assert json.loads(result.output) == body
 
@@ -99,7 +99,7 @@ def test_policy_check_noncompliant_exits_one(tmp_path: Path, monkeypatch: pytest
     body = {"policy": "p", "checked": True, "compliant": False, "violations": ["bad"], "guidance": "fix"}
     monkeypatch.setattr("urllib.request.urlopen", lambda *_a, **_k: _FakeResponse(200, body))
 
-    result = CliRunner().invoke(gateway_cli.policy, ["check", "p", "--claude-transcript", _write_transcript(tmp_path)])
+    result = CliRunner().invoke(gateway_cli.warden, ["check", "p", "--claude-transcript", _write_transcript(tmp_path)])
     assert result.exit_code == 1
     assert json.loads(result.output)["compliant"] is False
 
@@ -114,7 +114,7 @@ def test_policy_check_unknown_policy_exits_two(tmp_path: Path, monkeypatch: pyte
     monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
 
     result = CliRunner().invoke(
-        gateway_cli.policy, ["check", "does-not-exist", "--claude-transcript", _write_transcript(tmp_path)]
+        gateway_cli.warden, ["check", "does-not-exist", "--claude-transcript", _write_transcript(tmp_path)]
     )
     assert result.exit_code == 2
 
@@ -128,7 +128,7 @@ def test_policy_check_unavailable_block_exits_two(tmp_path: Path, monkeypatch: p
 
     monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
 
-    result = CliRunner().invoke(gateway_cli.policy, ["check", "p", "--claude-transcript", _write_transcript(tmp_path)])
+    result = CliRunner().invoke(gateway_cli.warden, ["check", "p", "--claude-transcript", _write_transcript(tmp_path)])
     assert result.exit_code == 2
 
 
@@ -146,7 +146,7 @@ def test_policy_check_unrecognized_4xx_exits_two_not_zero(tmp_path: Path, monkey
 
     monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
 
-    result = CliRunner().invoke(gateway_cli.policy, ["check", "p", "--claude-transcript", _write_transcript(tmp_path)])
+    result = CliRunner().invoke(gateway_cli.warden, ["check", "p", "--claude-transcript", _write_transcript(tmp_path)])
     assert result.exit_code == 2
 
 
@@ -159,7 +159,7 @@ def test_policy_check_connection_error_exits_two(tmp_path: Path, monkeypatch: py
 
     monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
 
-    result = CliRunner().invoke(gateway_cli.policy, ["check", "p", "--claude-transcript", _write_transcript(tmp_path)])
+    result = CliRunner().invoke(gateway_cli.warden, ["check", "p", "--claude-transcript", _write_transcript(tmp_path)])
     assert result.exit_code == 2
 
 
@@ -175,10 +175,10 @@ def test_policy_check_default_url_derived_from_config(tmp_path: Path, monkeypatc
 
     monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
 
-    result = CliRunner().invoke(gateway_cli.policy, ["check", "p", "--claude-transcript", _write_transcript(tmp_path)])
+    result = CliRunner().invoke(gateway_cli.warden, ["check", "p", "--claude-transcript", _write_transcript(tmp_path)])
     assert result.exit_code == 0
     # 0.0.0.0 is not connectable, so the derived default substitutes 127.0.0.1.
-    assert captured["url"] == "http://127.0.0.1:8000/api/v1/plugins/agent-gates/policy-checks/p/check"
+    assert captured["url"] == "http://127.0.0.1:8000/api/v1/plugins/warden/policy-checks/p/check"
     assert captured["auth_header"] == "the-master-key"
 
 
@@ -195,7 +195,7 @@ def test_policy_check_url_and_api_key_overrides(tmp_path: Path, monkeypatch: pyt
     monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
 
     result = CliRunner().invoke(
-        gateway_cli.policy,
+        gateway_cli.warden,
         [
             "check",
             "p",
@@ -208,7 +208,7 @@ def test_policy_check_url_and_api_key_overrides(tmp_path: Path, monkeypatch: pyt
         ],
     )
     assert result.exit_code == 0
-    assert captured["url"] == "http://otari.example.com:9000/api/v1/plugins/agent-gates/policy-checks/p/check"
+    assert captured["url"] == "http://otari.example.com:9000/api/v1/plugins/warden/policy-checks/p/check"
     assert captured["auth_header"] == "override-key"
 
 
@@ -231,9 +231,9 @@ def test_policy_check_url_and_api_key_default_from_environment(tmp_path: Path, m
 
     monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
 
-    result = CliRunner().invoke(gateway_cli.policy, ["check", "p", "--claude-transcript", _write_transcript(tmp_path)])
+    result = CliRunner().invoke(gateway_cli.warden, ["check", "p", "--claude-transcript", _write_transcript(tmp_path)])
     assert result.exit_code == 0, result.output
-    assert captured["url"] == "https://otari.example.com/api/v1/plugins/agent-gates/policy-checks/p/check"
+    assert captured["url"] == "https://otari.example.com/api/v1/plugins/warden/policy-checks/p/check"
     assert captured["auth_header"] == "sk-ordinary-key"
 
 
@@ -252,11 +252,11 @@ def test_policy_check_flags_beat_environment(tmp_path: Path, monkeypatch: pytest
     monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
 
     result = CliRunner().invoke(
-        gateway_cli.policy,
+        gateway_cli.warden,
         ["check", "p", "--claude-transcript", _write_transcript(tmp_path), "--url", "http://flag:1", "--api-key", "fk"],
     )
     assert result.exit_code == 0
-    assert captured["url"] == "http://flag:1/api/v1/plugins/agent-gates/policy-checks/p/check"
+    assert captured["url"] == "http://flag:1/api/v1/plugins/warden/policy-checks/p/check"
     assert captured["auth_header"] == "fk"
 
 
@@ -276,9 +276,9 @@ def test_policy_check_partial_environment_fills_the_rest_from_config(
 
     monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
 
-    result = CliRunner().invoke(gateway_cli.policy, ["check", "p", "--claude-transcript", _write_transcript(tmp_path)])
+    result = CliRunner().invoke(gateway_cli.warden, ["check", "p", "--claude-transcript", _write_transcript(tmp_path)])
     assert result.exit_code == 0
-    assert captured["url"] == "https://env.example.com/api/v1/plugins/agent-gates/policy-checks/p/check"
+    assert captured["url"] == "https://env.example.com/api/v1/plugins/warden/policy-checks/p/check"
     assert captured["auth_header"] == "from-config"
 
 
@@ -295,7 +295,7 @@ def test_policy_check_sends_the_transcripts_latest_entry_uuid_as_turn_id(
     monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
 
     result = CliRunner().invoke(
-        gateway_cli.policy,
+        gateway_cli.warden,
         [
             "check",
             "p",
@@ -320,7 +320,7 @@ def test_policy_check_sends_the_current_branch(tmp_path: Path, monkeypatch: pyte
     monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
 
     result = CliRunner().invoke(
-        gateway_cli.policy,
+        gateway_cli.warden,
         ["check", "p", "--claude-transcript", _write_transcript(tmp_path)],
     )
     assert result.exit_code == 0
@@ -364,7 +364,7 @@ def test_policy_check_sends_executed_commands_extracted_from_the_transcript(
     monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
 
     result = CliRunner().invoke(
-        gateway_cli.policy,
+        gateway_cli.warden,
         ["check", "p", "--claude-transcript", _write_transcript_with_bash_call(tmp_path)],
     )
     assert result.exit_code == 0
@@ -409,7 +409,7 @@ def test_policy_check_sends_edited_and_loaded_context_paths(tmp_path: Path, monk
     monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
 
     result = CliRunner().invoke(
-        gateway_cli.policy,
+        gateway_cli.warden,
         ["check", "p", "--claude-transcript", _write_transcript_with_edit_and_nested_memory(tmp_path)],
     )
     assert result.exit_code == 0
@@ -441,19 +441,19 @@ def test_current_branch_label_reads_abbrev_ref(tmp_path: Path, monkeypatch: pyte
         assert argv[-2:] == ["--abbrev-ref", "HEAD"]
         return _completed("feature-branch\n")
 
-    monkeypatch.setattr("otari_agent_gates.cli.subprocess.run", fake_run)
-    monkeypatch.setattr("otari_agent_gates.cli.shutil.which", lambda _name: "/usr/bin/git")
+    monkeypatch.setattr("otari_warden.cli.subprocess.run", fake_run)
+    monkeypatch.setattr("otari_warden.cli.shutil.which", lambda _name: "/usr/bin/git")
     assert gateway_cli._current_branch_label(tmp_path) == "feature-branch"
 
 
 def test_current_branch_label_treats_detached_head_as_unknown(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("otari_agent_gates.cli.subprocess.run", lambda *_a, **_k: _completed("HEAD\n"))
-    monkeypatch.setattr("otari_agent_gates.cli.shutil.which", lambda _name: "/usr/bin/git")
+    monkeypatch.setattr("otari_warden.cli.subprocess.run", lambda *_a, **_k: _completed("HEAD\n"))
+    monkeypatch.setattr("otari_warden.cli.shutil.which", lambda _name: "/usr/bin/git")
     assert gateway_cli._current_branch_label(tmp_path) is None
 
 
 def test_current_branch_label_no_git_returns_none(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("otari_agent_gates.cli.shutil.which", lambda _name: None)
+    monkeypatch.setattr("otari_warden.cli.shutil.which", lambda _name: None)
     assert gateway_cli._current_branch_label(tmp_path) is None
 
 
@@ -462,13 +462,13 @@ def test_git_toplevel_reads_show_toplevel(tmp_path: Path, monkeypatch: pytest.Mo
         assert argv[-1:] == ["--show-toplevel"]
         return _completed("/repo\n")
 
-    monkeypatch.setattr("otari_agent_gates.cli.subprocess.run", fake_run)
-    monkeypatch.setattr("otari_agent_gates.cli.shutil.which", lambda _name: "/usr/bin/git")
+    monkeypatch.setattr("otari_warden.cli.subprocess.run", fake_run)
+    monkeypatch.setattr("otari_warden.cli.shutil.which", lambda _name: "/usr/bin/git")
     assert gateway_cli._git_toplevel(tmp_path) == Path("/repo")
 
 
 def test_git_toplevel_no_git_returns_none(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("otari_agent_gates.cli.shutil.which", lambda _name: None)
+    monkeypatch.setattr("otari_warden.cli.shutil.which", lambda _name: None)
     assert gateway_cli._git_toplevel(tmp_path) is None
 
 
@@ -522,7 +522,7 @@ def test_policy_check_explicit_gates_file_sends_inline_spec(tmp_path: Path, monk
     monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
 
     result = CliRunner().invoke(
-        gateway_cli.policy,
+        gateway_cli.warden,
         [
             "check",
             "my-repo",
@@ -553,7 +553,7 @@ def test_policy_check_auto_discovers_gates_file_from_cwd(tmp_path: Path, monkeyp
     monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
 
     result = CliRunner().invoke(
-        gateway_cli.policy, ["check", "my-repo", "--claude-transcript", _write_transcript(tmp_path)]
+        gateway_cli.warden, ["check", "my-repo", "--claude-transcript", _write_transcript(tmp_path)]
     )
     assert result.exit_code == 0
     assert "spec" in captured["body"]
@@ -574,7 +574,7 @@ def test_policy_check_with_no_gates_file_sends_no_inline_spec(tmp_path: Path, mo
 
     monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
 
-    result = CliRunner().invoke(gateway_cli.policy, ["check", "p", "--claude-transcript", _write_transcript(tmp_path)])
+    result = CliRunner().invoke(gateway_cli.warden, ["check", "p", "--claude-transcript", _write_transcript(tmp_path)])
     assert result.exit_code == 0
     assert "spec" not in captured["body"]
 
@@ -593,7 +593,7 @@ def test_policy_check_malformed_gates_file_exits_two_with_no_network_call(
     monkeypatch.setattr("urllib.request.urlopen", fail_if_called)
 
     result = CliRunner().invoke(
-        gateway_cli.policy,
+        gateway_cli.warden,
         [
             "check",
             "p",
@@ -809,7 +809,7 @@ def test_decompose_plan_retries_then_succeeds(monkeypatch: pytest.MonkeyPatch) -
             return _fake_result("not json")
         return _fake_result(json.dumps([{"name": "a", "description": "b"}]))
 
-    monkeypatch.setattr("otari_agent_gates.headless.run_claude_headless", fake_run)
+    monkeypatch.setattr("otari_warden.headless.run_claude_headless", fake_run)
     criteria = gateway_cli.decompose_plan("some plan text", max_criteria=5)
     assert criteria == [gateway_cli.Criterion(name="a", description="b")]
     assert calls["n"] == 2
@@ -818,7 +818,7 @@ def test_decompose_plan_retries_then_succeeds(monkeypatch: pytest.MonkeyPatch) -
 def test_policy_generate_requires_judge_model_for_provider_backend(tmp_path: Path) -> None:
     plan_path = tmp_path / "plan.md"
     plan_path.write_text("# Plan\n", encoding="utf-8")
-    result = CliRunner().invoke(gateway_cli.policy, ["generate", str(plan_path), "--judge-backend", "provider"])
+    result = CliRunner().invoke(gateway_cli.warden, ["generate", str(plan_path), "--judge-backend", "provider"])
     assert result.exit_code != 0
 
 
@@ -826,12 +826,12 @@ def test_policy_generate_writes_yaml(tmp_path: Path, monkeypatch: pytest.MonkeyP
     plan_path = tmp_path / "my-plan.md"
     plan_path.write_text("# Plan\n\nDo the thing.\n", encoding="utf-8")
     monkeypatch.setattr(
-        "otari_agent_gates.headless.run_claude_headless",
+        "otari_warden.headless.run_claude_headless",
         lambda *_a, **_k: _fake_result(json.dumps([{"name": "a", "description": "Do the thing."}])),
     )
     monkeypatch.chdir(tmp_path)
 
-    result = CliRunner().invoke(gateway_cli.policy, ["generate", str(plan_path)])
+    result = CliRunner().invoke(gateway_cli.warden, ["generate", str(plan_path)])
     assert result.exit_code == 0
 
     yaml_out = tmp_path / ".otari-gates.yml"
@@ -848,7 +848,7 @@ def test_policy_generate_writes_a_mechanical_gate_when_classified(
     plan_path = tmp_path / "my-plan.md"
     plan_path.write_text("# Plan\n\nAlways run make lint.\n", encoding="utf-8")
     monkeypatch.setattr(
-        "otari_agent_gates.headless.run_claude_headless",
+        "otari_warden.headless.run_claude_headless",
         lambda *_a, **_k: _fake_result(
             json.dumps(
                 [
@@ -865,7 +865,7 @@ def test_policy_generate_writes_a_mechanical_gate_when_classified(
     )
     monkeypatch.chdir(tmp_path)
 
-    result = CliRunner().invoke(gateway_cli.policy, ["generate", str(plan_path)])
+    result = CliRunner().invoke(gateway_cli.warden, ["generate", str(plan_path)])
     assert result.exit_code == 0
 
     yaml_out = tmp_path / ".otari-gates.yml"
@@ -892,18 +892,18 @@ def test_policy_generate_dry_run_writes_nothing(tmp_path: Path, monkeypatch: pyt
     plan_path = tmp_path / "my-plan.md"
     plan_path.write_text("# Plan\n", encoding="utf-8")
     monkeypatch.setattr(
-        "otari_agent_gates.headless.run_claude_headless",
+        "otari_warden.headless.run_claude_headless",
         lambda *_a, **_k: _fake_result(json.dumps([{"name": "a", "description": "d"}])),
     )
 
-    result = CliRunner().invoke(gateway_cli.policy, ["generate", str(plan_path), "--dry-run"])
+    result = CliRunner().invoke(gateway_cli.warden, ["generate", str(plan_path), "--dry-run"])
     assert result.exit_code == 0
     assert not (tmp_path / ".otari-gates.yml").exists()
     assert "a: d" in result.output
 
 
 def test_policy_generate_missing_plan_file_errors() -> None:
-    result = CliRunner().invoke(gateway_cli.policy, ["generate", "/nonexistent/plan.md"])
+    result = CliRunner().invoke(gateway_cli.warden, ["generate", "/nonexistent/plan.md"])
     assert result.exit_code != 0
 
 
@@ -920,9 +920,9 @@ def test_policy_give_up_sends_session_id_and_detected_repo_branch(monkeypatch: p
 
     monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
 
-    result = CliRunner().invoke(gateway_cli.policy, ["give-up", "p", "--session-id", "sess-1"])
+    result = CliRunner().invoke(gateway_cli.warden, ["give-up", "p", "--session-id", "sess-1"])
     assert result.exit_code == 0
-    assert captured["url"].endswith("/api/v1/plugins/agent-gates/policy-checks/p/give-up")
+    assert captured["url"].endswith("/api/v1/plugins/warden/policy-checks/p/give-up")
     assert captured["body"] == {"session_id": "sess-1", "repo": "otari", "branch": "feature-a"}
 
 
@@ -944,14 +944,14 @@ def test_policy_give_up_url_and_api_key_default_from_environment(monkeypatch: py
 
     monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
 
-    result = CliRunner().invoke(gateway_cli.policy, ["give-up", "p", "--session-id", "sess-1"])
+    result = CliRunner().invoke(gateway_cli.warden, ["give-up", "p", "--session-id", "sess-1"])
     assert result.exit_code == 0, result.output
-    assert captured["url"] == "https://otari.example.com/api/v1/plugins/agent-gates/policy-checks/p/give-up"
+    assert captured["url"] == "https://otari.example.com/api/v1/plugins/warden/policy-checks/p/give-up"
     assert captured["auth_header"] == "sk-ordinary-key"
 
 
 def test_policy_give_up_requires_session_id() -> None:
-    result = CliRunner().invoke(gateway_cli.policy, ["give-up", "p"])
+    result = CliRunner().invoke(gateway_cli.warden, ["give-up", "p"])
     assert result.exit_code != 0
 
 
@@ -963,7 +963,7 @@ def test_policy_give_up_http_error_exits_two(monkeypatch: pytest.MonkeyPatch) ->
 
     monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
 
-    result = CliRunner().invoke(gateway_cli.policy, ["give-up", "p", "--session-id", "sess-1"])
+    result = CliRunner().invoke(gateway_cli.warden, ["give-up", "p", "--session-id", "sess-1"])
     assert result.exit_code == 2
 
 
@@ -975,7 +975,7 @@ def test_policy_give_up_connection_error_exits_two(monkeypatch: pytest.MonkeyPat
 
     monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
 
-    result = CliRunner().invoke(gateway_cli.policy, ["give-up", "p", "--session-id", "sess-1"])
+    result = CliRunner().invoke(gateway_cli.warden, ["give-up", "p", "--session-id", "sess-1"])
     assert result.exit_code == 2
 
 

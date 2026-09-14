@@ -1,6 +1,6 @@
 # Hooks
 
-Two Claude Code hooks ship under `src/otari_agent_gates/hooks/`. Both are
+Two Claude Code hooks ship under `src/otari_warden/hooks/`. Both are
 standard library only and thin: each reads Claude Code's JSON payload from stdin
 and hands it to the `otari` CLI, which does the work. Copy them anywhere Claude
 Code and `otari` are installed; they need no other file from this package.
@@ -10,7 +10,7 @@ Code and `otari` are installed; they need no other file from this package.
 `policy_check_hook.py` runs when a turn ends. It calls
 
 ```
-otari policy check $OTARI_POLICY_NAME --claude-transcript <path> --session-id <id>
+otari warden check $OTARI_POLICY_NAME --claude-transcript <path> --session-id <id>
 ```
 
 which extracts the current turn from the transcript (the text excerpt, the Bash
@@ -19,7 +19,7 @@ commands that ran and whether they errored, the paths edited, and every
 all of that to the gateway. Only this machine can read the transcript; the gateway
 never does.
 
-Exit codes of `otari policy check`, and what the hook does with each:
+Exit codes of `otari warden check`, and what the hook does with each:
 
 | Exit | Meaning | Hook |
 | --- | --- | --- |
@@ -29,13 +29,13 @@ Exit codes of `otari policy check`, and what the hook does with each:
 
 The hook keeps a per-session attempt count in a temp file. Once
 `OTARI_POLICY_CHECK_MAX_ATTEMPTS` (default 3) blocks have happened, it lets the
-session finish and records a `gave_up` marker through `otari policy give-up`, so
+session finish and records a `gave_up` marker through `otari warden give-up`, so
 the session's timeline in the dashboard can tell "converged" apart from
 "exhausted its retries". A continuation Claude Code flags with `stop_hook_active`
 is checked again like any other stop: the retry is the turn that needs verifying,
 and the attempt cap is what keeps the loop bounded.
 
-`otari policy check` (and `give-up`) finds the gateway through `--url`, which
+`otari warden check` (and `give-up`) finds the gateway through `--url`, which
 defaults to `OTARI_URL`, and authenticates with `--api-key`, which defaults to
 `OTARI_API_KEY`: an ordinary Otari API key, since the check route accepts one.
 Export both in the shell Claude Code runs from and the hook works from any
@@ -46,7 +46,7 @@ the zero-configuration path on the gateway's own machine.
 ## The PreToolUse hook
 
 `pretooluse_hook.py` runs before every Bash tool call. It pipes the payload to
-`otari policy pretooluse`, which:
+`otari warden pretooluse`, which:
 
 1. discovers `.otari-gates.yml` from the current directory upward;
 2. keeps every `command` gate with `mode: must_not_run` and no `paths` condition
@@ -95,9 +95,9 @@ keep them; the gates they enforce still come from the repo being worked on.
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `OTARI_POLICY_NAME` | required (Stop hook) | Policy to check, or the label when a gates file is found |
-| `OTARI_URL` | derived from `config.yml` | Gateway base URL, read by `otari policy check` and `give-up` |
+| `OTARI_URL` | derived from `config.yml` | Gateway base URL, read by `otari warden check` and `give-up` |
 | `OTARI_API_KEY` | `config.yml`'s `master_key` | An ordinary Otari API key for that gateway |
 | `OTARI_CLI_PATH` | `otari` on `PATH` | Override for a non-`PATH` `otari` install |
 | `OTARI_POLICY_CHECK_MAX_ATTEMPTS` | `3` | Retry cap per session |
 | `OTARI_POLICY_CHECK_FAIL_MODE` | `open` | `open` or `closed`, see above |
-| `OTARI_CLAUDE_CLI_PATH` | `claude` on `PATH` | Read by the gateway for subscription judge gates, and by `otari policy generate` |
+| `OTARI_CLAUDE_CLI_PATH` | `claude` on `PATH` | Read by the gateway for subscription judge gates, and by `otari warden generate` |

@@ -11,7 +11,7 @@ import { RunStatusChip } from "../components/StatusChip"
 import { TabIntro } from "../components/TabIntro"
 import { formatCost, formatPct, formatRelative } from "../helpers/format"
 
-const README_URL = "https://github.com/mozilla-ai/otari-agent-gates#readme"
+const README_URL = "https://github.com/njbrake/warden#readme"
 
 function ViewAll({ to }: { to: string }) {
   return (

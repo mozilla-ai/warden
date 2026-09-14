@@ -1,4 +1,4 @@
-"""Unit tests for `otari_agent_gates.headless`. `subprocess.run` is monkeypatched throughout; no real `claude` runs."""
+"""Unit tests for `otari_warden.headless`. `subprocess.run` is monkeypatched throughout; no real `claude` runs."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest
 
-from otari_agent_gates import headless as cli
+from otari_warden import headless as cli
 
 
 class _FakeCompleted:

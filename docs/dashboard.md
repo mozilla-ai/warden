@@ -1,7 +1,7 @@
 # The dashboard page
 
-Agent gates appears in the Otari dashboard sidebar once the plugin is loaded.
-The page is served by the gateway at `/plugins/agent-gates/ui/` and calls the
+Warden appears in the Otari dashboard sidebar once the plugin is loaded.
+The page is served by the gateway at `/plugins/warden/ui/` and calls the
 plugin's API with the dashboard's own session cookie, so it needs no token.
 
 - **Overview.** Pass rate and total runs, recent runs, and the repos whose
@@ -40,7 +40,7 @@ Nothing prunes history on a schedule. Use the "Clear old records" control on the
 Runs page, or the API directly:
 
 ```bash
-curl -X DELETE "$OTARI_URL/api/v1/plugins/agent-gates/policy-checks/history?older_than_days=90" \
+curl -X DELETE "$OTARI_URL/api/v1/plugins/warden/policy-checks/history?older_than_days=90" \
   -H "Authorization: Bearer $OTARI_MASTER_KEY"
 ```
 

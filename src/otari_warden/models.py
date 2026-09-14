@@ -233,8 +233,8 @@ class TrafficConfig(BaseModel):
         return bool(self.policy or self.gates)
 
 
-class AgentGatesConfig(BaseModel):
-    """The ``plugins.agent-gates:`` block of ``config.yml``.
+class WardenConfig(BaseModel):
+    """The ``plugins.warden:`` block of ``config.yml``.
 
     Loading the plugin is the on/off switch (``plugins.disabled`` turns it off), and a
     hook-checked policy is never declared here: it comes from a repo's own

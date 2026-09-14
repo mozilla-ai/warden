@@ -9,9 +9,9 @@ import pytest
 from gateway.core.config import GatewayConfig
 from sqlalchemy.exc import SQLAlchemyError
 
-from otari_agent_gates import headless as claude_headless
-from otari_agent_gates.headless import ClaudeCliCallError
-from otari_agent_gates.models import (
+from otari_warden import headless as claude_headless
+from otari_warden.headless import ClaudeCliCallError
+from otari_warden.models import (
     CommandGateSpec,
     DeterministicGateSpec,
     EditedPathGateSpec,
@@ -19,7 +19,7 @@ from otari_agent_gates.models import (
     PolicyCheckSpec,
     ScopedGuidanceGateSpec,
 )
-from otari_agent_gates.service import (
+from otari_warden.service import (
     ExecutedCommand,
     PolicyCheckUnavailableError,
     PolicyVerdict,
@@ -87,7 +87,7 @@ async def test_deterministic_gate_short_circuits_judge_call(config: GatewayConfi
             _JUDGE_GATE,
         ]
     )
-    with patch("otari_agent_gates.service.acompletion", new_callable=AsyncMock) as mock_completion:
+    with patch("otari_warden.service.acompletion", new_callable=AsyncMock) as mock_completion:
         verdict, gates = await check_policy_compliance(
             config, spec, policy_name="p", transcript_excerpt="ran: git push --force origin main"
         )
@@ -118,7 +118,7 @@ async def test_command_gate_short_circuits_judge_call(config: GatewayConfig) -> 
             _JUDGE_GATE,
         ]
     )
-    with patch("otari_agent_gates.service.acompletion", new_callable=AsyncMock) as mock_completion:
+    with patch("otari_warden.service.acompletion", new_callable=AsyncMock) as mock_completion:
         verdict, gates = await check_policy_compliance(
             config, spec, policy_name="p", transcript_excerpt="irrelevant", executed_commands=[]
         )
@@ -411,7 +411,7 @@ async def test_judge_gate_runs_when_deterministic_gates_pass(config: GatewayConf
         ]
     )
     expected = PolicyVerdict(compliant=False, violations=["skipped a rule"], guidance="do the thing")
-    with patch("otari_agent_gates.service.acompletion", new_callable=AsyncMock) as mock_completion:
+    with patch("otari_warden.service.acompletion", new_callable=AsyncMock) as mock_completion:
         mock_completion.return_value = _completion(expected)
         verdict, gates = await check_policy_compliance(
             config, spec, policy_name="p", transcript_excerpt="all good here"
@@ -433,7 +433,7 @@ async def test_judge_gate_runs_when_deterministic_gates_pass(config: GatewayConf
 async def test_judge_retries_once_then_succeeds(config: GatewayConfig) -> None:
     spec = PolicyCheckSpec(gates=[_JUDGE_GATE])
     ok = PolicyVerdict(compliant=True)
-    with patch("otari_agent_gates.service.acompletion", new_callable=AsyncMock) as mock_completion:
+    with patch("otari_warden.service.acompletion", new_callable=AsyncMock) as mock_completion:
         mock_completion.side_effect = [RuntimeError("boom"), _completion(ok)]
         verdict, gates = await check_policy_compliance(config, spec, policy_name="p", transcript_excerpt="text")
     assert verdict.compliant is True
@@ -449,7 +449,7 @@ async def test_judge_gates_aggregate_violations_from_all_gates(config: GatewayCo
     spec = PolicyCheckSpec(gates=[_JUDGE_GATE, _JUDGE_GATE_2])
     verdict_1 = PolicyVerdict(compliant=False, violations=["force-pushed"], guidance="don't force-push")
     verdict_2 = PolicyVerdict(compliant=False, violations=["no tests added"], guidance="add tests")
-    with patch("otari_agent_gates.service.acompletion", new_callable=AsyncMock) as mock_completion:
+    with patch("otari_warden.service.acompletion", new_callable=AsyncMock) as mock_completion:
         mock_completion.side_effect = [_completion(verdict_1), _completion(verdict_2)]
         verdict, gates = await check_policy_compliance(config, spec, policy_name="p", transcript_excerpt="text")
     assert verdict.compliant is False
@@ -470,7 +470,7 @@ async def test_judge_gates_aggregate_violations_from_all_gates(config: GatewayCo
 async def test_judge_gates_all_compliant_returns_compliant(config: GatewayConfig) -> None:
     spec = PolicyCheckSpec(gates=[_JUDGE_GATE, _JUDGE_GATE_2])
     ok = PolicyVerdict(compliant=True)
-    with patch("otari_agent_gates.service.acompletion", new_callable=AsyncMock) as mock_completion:
+    with patch("otari_warden.service.acompletion", new_callable=AsyncMock) as mock_completion:
         mock_completion.side_effect = [_completion(ok), _completion(ok)]
         verdict, gates = await check_policy_compliance(config, spec, policy_name="p", transcript_excerpt="text")
     assert verdict.compliant is True
@@ -482,7 +482,7 @@ async def test_judge_gates_all_compliant_returns_compliant(config: GatewayConfig
 @pytest.mark.asyncio
 async def test_judge_raises_unavailable_after_two_failures(config: GatewayConfig) -> None:
     spec = PolicyCheckSpec(gates=[_JUDGE_GATE])
-    with patch("otari_agent_gates.service.acompletion", new_callable=AsyncMock) as mock_completion:
+    with patch("otari_warden.service.acompletion", new_callable=AsyncMock) as mock_completion:
         mock_completion.side_effect = RuntimeError("boom")
         with pytest.raises(PolicyCheckUnavailableError) as exc_info:
             await check_policy_compliance(config, spec, policy_name="p", transcript_excerpt="text")
@@ -493,7 +493,7 @@ async def test_judge_raises_unavailable_after_two_failures(config: GatewayConfig
 @pytest.mark.asyncio
 async def test_subscription_judge_gate_happy_path(config: GatewayConfig) -> None:
     spec = PolicyCheckSpec(gates=[_SUBSCRIPTION_GATE])
-    with patch("otari_agent_gates.headless.run_claude_headless") as mock_run:
+    with patch("otari_warden.headless.run_claude_headless") as mock_run:
         mock_run.return_value = _claude_result(
             '{"compliant": false, "violations": ["force-pushed"], "guidance": "don\'t"}',
             total_cost_usd=0.0077,
@@ -517,7 +517,7 @@ async def test_subscription_judge_gate_defaults_to_the_small_model(config: Gatew
     would otherwise pick - judging one rule is a narrow task and every gate is a real
     subscription call, so the default should be the model this needs the least of."""
     spec = PolicyCheckSpec(gates=[_SUBSCRIPTION_GATE])
-    with patch("otari_agent_gates.headless.run_claude_headless") as mock_run:
+    with patch("otari_warden.headless.run_claude_headless") as mock_run:
         mock_run.return_value = _claude_result('{"compliant": true}')
         await check_policy_compliance(config, spec, policy_name="p", transcript_excerpt="text")
     assert mock_run.call_args.kwargs["model"] == claude_headless.DEFAULT_SUBSCRIPTION_MODEL
@@ -527,7 +527,7 @@ async def test_subscription_judge_gate_defaults_to_the_small_model(config: Gatew
 async def test_subscription_judge_gate_honors_an_explicit_model(config: GatewayConfig) -> None:
     gate = JudgeGateSpec(name="s", judge_backend="subscription", judge_model="sonnet", rules="Never force-push.")
     spec = PolicyCheckSpec(gates=[gate])
-    with patch("otari_agent_gates.headless.run_claude_headless") as mock_run:
+    with patch("otari_warden.headless.run_claude_headless") as mock_run:
         mock_run.return_value = _claude_result('{"compliant": true}')
         await check_policy_compliance(config, spec, policy_name="p", transcript_excerpt="text")
     assert mock_run.call_args.kwargs["model"] == "sonnet"
@@ -536,7 +536,7 @@ async def test_subscription_judge_gate_honors_an_explicit_model(config: GatewayC
 @pytest.mark.asyncio
 async def test_subscription_judge_gate_retries_on_malformed_reply(config: GatewayConfig) -> None:
     spec = PolicyCheckSpec(gates=[_SUBSCRIPTION_GATE])
-    with patch("otari_agent_gates.headless.run_claude_headless") as mock_run:
+    with patch("otari_warden.headless.run_claude_headless") as mock_run:
         mock_run.side_effect = [_claude_result("not json"), _claude_result('{"compliant": true}')]
         verdict, gates = await check_policy_compliance(config, spec, policy_name="p", transcript_excerpt="text")
     assert verdict.compliant is True
@@ -547,7 +547,7 @@ async def test_subscription_judge_gate_retries_on_malformed_reply(config: Gatewa
 @pytest.mark.asyncio
 async def test_subscription_judge_gate_unavailable_after_two_failures(config: GatewayConfig) -> None:
     spec = PolicyCheckSpec(gates=[_SUBSCRIPTION_GATE])
-    with patch("otari_agent_gates.headless.run_claude_headless") as mock_run:
+    with patch("otari_warden.headless.run_claude_headless") as mock_run:
         mock_run.side_effect = ClaudeCliCallError("claude exited 1")
         with pytest.raises(PolicyCheckUnavailableError):
             await check_policy_compliance(config, spec, policy_name="p", transcript_excerpt="text")
@@ -570,7 +570,7 @@ async def test_subscription_judge_gates_run_concurrently_not_sequentially(config
         time.sleep(_SLEEP_SECONDS)
         return _claude_result('{"compliant": true}')
 
-    with patch("otari_agent_gates.headless.run_claude_headless", side_effect=_blocking_compliant_reply):
+    with patch("otari_warden.headless.run_claude_headless", side_effect=_blocking_compliant_reply):
         started_at = time.monotonic()
         verdict, _gates = await check_policy_compliance(config, spec, policy_name="p", transcript_excerpt="text")
         elapsed = time.monotonic() - started_at
@@ -586,8 +586,8 @@ async def test_mixed_backend_gates_aggregate_across_both(config: GatewayConfig) 
     spec = PolicyCheckSpec(gates=[_JUDGE_GATE, _SUBSCRIPTION_GATE])
     provider_verdict = PolicyVerdict(compliant=False, violations=["provider-side finding"], guidance="fix provider")
     with (
-        patch("otari_agent_gates.service.acompletion", new_callable=AsyncMock) as mock_completion,
-        patch("otari_agent_gates.headless.run_claude_headless") as mock_run,
+        patch("otari_warden.service.acompletion", new_callable=AsyncMock) as mock_completion,
+        patch("otari_warden.headless.run_claude_headless") as mock_run,
     ):
         mock_completion.return_value = _completion(provider_verdict)
         mock_run.return_value = _claude_result(
@@ -607,7 +607,7 @@ async def test_mixed_backend_gates_aggregate_across_both(config: GatewayConfig) 
 @pytest.mark.asyncio
 async def test_evaluate_policy_block_reraises(config: GatewayConfig) -> None:
     spec = PolicyCheckSpec(gates=[_JUDGE_GATE], on_unavailable="block")
-    with patch("otari_agent_gates.service.acompletion", new_callable=AsyncMock) as mock_completion:
+    with patch("otari_warden.service.acompletion", new_callable=AsyncMock) as mock_completion:
         mock_completion.side_effect = RuntimeError("boom")
         with pytest.raises(PolicyCheckUnavailableError):
             await evaluate_policy(config, spec, policy_name="p", transcript_excerpt="text")
@@ -616,7 +616,7 @@ async def test_evaluate_policy_block_reraises(config: GatewayConfig) -> None:
 @pytest.mark.asyncio
 async def test_evaluate_policy_monitor_falls_back(config: GatewayConfig) -> None:
     spec = PolicyCheckSpec(gates=[_JUDGE_GATE], on_unavailable="monitor")
-    with patch("otari_agent_gates.service.acompletion", new_callable=AsyncMock) as mock_completion:
+    with patch("otari_warden.service.acompletion", new_callable=AsyncMock) as mock_completion:
         mock_completion.side_effect = RuntimeError("boom")
         result = await evaluate_policy(config, spec, policy_name="p", transcript_excerpt="text")
     assert result == {
@@ -633,7 +633,7 @@ async def test_evaluate_policy_monitor_falls_back(config: GatewayConfig) -> None
 async def test_evaluate_policy_happy_path(config: GatewayConfig) -> None:
     spec = PolicyCheckSpec(gates=[_JUDGE_GATE])
     verdict = PolicyVerdict(compliant=False, violations=["v"], guidance="g")
-    with patch("otari_agent_gates.service.acompletion", new_callable=AsyncMock) as mock_completion:
+    with patch("otari_warden.service.acompletion", new_callable=AsyncMock) as mock_completion:
         mock_completion.return_value = _completion(verdict)
         result = await evaluate_policy(config, spec, policy_name="p", transcript_excerpt="text")
     assert result["policy"] == "p"

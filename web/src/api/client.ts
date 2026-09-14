@@ -1,6 +1,6 @@
 // Every call is same-origin and rides the dashboard session cookie: the page
 // is iframed by the dashboard, so no token is ever handled here.
-const API_PREFIX = "/api/v1/plugins/agent-gates"
+const API_PREFIX = "/api/v1/plugins/warden"
 
 export class ApiError extends Error {
   readonly status: number

@@ -2670,7 +2670,7 @@ wheels = [
 ]
 
 [[package]]
-name = "otari-agent-gates"
+name = "otari-warden"
 version = "0.1.0"
 source = { editable = "." }
 

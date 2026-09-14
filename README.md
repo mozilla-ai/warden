@@ -1,4 +1,4 @@
-# Agent Gates
+# Warden
 
 An [Otari](https://github.com/mozilla-ai/otari) plugin that reviews what your coding
 agent actually did, so you do not have to check its work yourself. A repo states its
@@ -18,10 +18,10 @@ on the client.
 ## Quick start
 
 1. **Install the plugin into Otari.** Open Marketplace in the Otari dashboard and
-   install Agent gates, or run
+   install Warden, or run
 
    ```
-   otari plugins install mozilla-ai/otari-agent-gates
+   otari plugins install njbrake/warden
    ```
 
    then restart `otari serve`. `otari plugins list` shows it as `loaded`.
@@ -49,7 +49,7 @@ on the client.
        rules_file: AGENTS.md
    ```
 
-3. **Wire the hooks.** Copy the two scripts from `src/otari_agent_gates/hooks/` to
+3. **Wire the hooks.** Copy the two scripts from `src/otari_warden/hooks/` to
    your machine (standard library only) and paste this into `~/.claude/settings.json`:
 
    ```json
@@ -83,7 +83,7 @@ on the client.
    export OTARI_CLI_PATH=/path/to/otari         # only when otari is not on PATH
    ```
 
-5. **Run a Claude Code session**, then open Agent gates in the Otari dashboard
+5. **Run a Claude Code session**, then open Warden in the Otari dashboard
    sidebar, under Build > Tools, to watch the runs come in.
 
 ## How it works
@@ -91,9 +91,9 @@ on the client.
 ```
 Claude Code turn ends
   -> Stop hook (hooks/policy_check_hook.py, standard library only)
-  -> otari policy check <name> --claude-transcript <path>
+  -> otari warden check <name> --claude-transcript <path>
        reads the transcript, extracts the current turn, discovers .otari-gates.yml
-  -> POST /api/v1/plugins/agent-gates/policy-checks/<name>/check
+  -> POST /api/v1/plugins/warden/policy-checks/<name>/check
        mechanical gates first; judge gates only if they all pass
   -> verdict recorded in history; non-compliant => hook exits 2 with the violations
   -> Claude Code keeps the session going with those violations as instructions
@@ -108,7 +108,7 @@ the plugin's config block:
 
 ```yaml
 plugins:
-  agent-gates:
+  warden:
     traffic:
       policy: team-rules        # a stored policy, or:
       gates:                    # inline gates, the same shape as .otari-gates.yml
@@ -127,7 +127,7 @@ refuses never reaches the agent: Otari removes it from the response (holding
 it back in a stream until it is whole) and puts the gate's message in its
 place, so the model sees why and tries something else. What fired, and what
 was refused, is recorded on the request's usage row under
-`plugin_annotations.agent-gates` and shown on the dashboard's Activity page.
+`plugin_annotations.warden` and shown on the dashboard's Activity page.
 
 The other gate types stay with the hook: `scoped_guidance` needs the loaded
 context, `deterministic` the rendered transcript, and `llm_judge` a model call
@@ -137,23 +137,23 @@ can drive.
 
 ## Install
 
-Agent Gates needs an Otari deployment with the plugin seam (`gateway.plugins`,
+Warden needs an Otari deployment with the plugin seam (`gateway.plugins`,
 plugin API 1). It runs in standalone mode; a hybrid gateway lists it as
 disabled, since a `provider`-backend judge has nothing local to resolve
 against there. Then any of:
 
-- **Dashboard.** Open Marketplace in the Otari dashboard, find Agent gates, and
+- **Dashboard.** Open Marketplace in the Otari dashboard, find Warden, and
   install it. Restart the gateway when the banner says so. This needs
   `plugins.allow_install: true` in the gateway's `config.yml`.
-- **CLI.** `otari plugins install mozilla-ai/otari-agent-gates`, then restart
+- **CLI.** `otari plugins install njbrake/warden`, then restart
   `otari serve`. This writes into the gateway's plugins directory.
 - **Package.** Into the same environment Otari runs in:
-  `pip install otari-agent-gates` or `uv pip install otari-agent-gates`. Otari
+  `pip install otari-warden` or `uv pip install otari-warden`. Otari
   discovers it through the `otari.plugins` entry point on the next start.
 
 On startup (with `auto_migrate`, the default) or on `otari migrate`, the plugin
 creates its two tables through its own Alembic chain, stamped in
-`alembic_version_agent_gates`, separate from Otari's own. `otari plugins list`
+`alembic_version_warden`, separate from Otari's own. `otari plugins list`
 and `GET /api/v1/plugins` show it as `loaded`.
 
 ## Configuration
@@ -164,42 +164,42 @@ optional:
 ```yaml
 # config.yml
 plugins:
-  disabled: []                  # add "agent-gates" to turn it off without uninstalling
-  agent-gates:
+  disabled: []                  # add "warden" to turn it off without uninstalling
+  warden:
     judge_timeout_seconds: 120  # cap on one subscription-backend judge call
 ```
 
 `judge_timeout_seconds` is declared in the manifest, so the Marketplace's
 Installed list shows it on the plugin's card, where an operator can change it
 without a restart; a value set there wins over `config.yml`. An unknown key
-under `plugins.agent-gates` fails the plugin load (it is listed as `failed`
+under `plugins.warden` fails the plugin load (it is listed as `failed`
 with the reason, and the gateway boots without it).
 
 A policy is never declared in `config.yml`. It comes from a repo's own
 `.otari-gates.yml` or from a policy stored through the dashboard; both are read
-fresh on every check. `otari policy generate plan.md` can draft a gates file from
+fresh on every check. `otari warden generate plan.md` can draft a gates file from
 an engineering plan. With a gates file present, `OTARI_POLICY_NAME` is only the
 label runs are recorded under.
 
 ## Hooks
 
-Both scripts under `src/otari_agent_gates/hooks/` are standard library only, so
+Both scripts under `src/otari_warden/hooks/` are standard library only, so
 they can be copied to any machine that has Claude Code and the `otari` CLI on
-`PATH`. Each is a thin dispatcher: the Stop hook calls `otari policy check`, the
-PreToolUse hook calls `otari policy pretooluse`. The settings JSON is the one in
+`PATH`. Each is a thin dispatcher: the Stop hook calls `otari warden check`, the
+PreToolUse hook calls `otari warden pretooluse`. The settings JSON is the one in
 the Quick start; it also works in a project's `.claude/settings.local.json`.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `OTARI_POLICY_NAME` | required (Stop hook) | Policy to check, or the label when a gates file is found |
-| `OTARI_URL` | derived from `config.yml` | Gateway base URL, read by `otari policy check` and `give-up` |
+| `OTARI_URL` | derived from `config.yml` | Gateway base URL, read by `otari warden check` and `give-up` |
 | `OTARI_API_KEY` | `config.yml`'s `master_key` | An ordinary Otari API key for that gateway |
 | `OTARI_CLI_PATH` | `otari` on `PATH` | Override for a non-`PATH` `otari` install |
 | `OTARI_POLICY_CHECK_MAX_ATTEMPTS` | `3` | Retry cap per session, a retry after a block is checked again |
 | `OTARI_POLICY_CHECK_FAIL_MODE` | `open` | `open` never blocks a session over a check that could not run; `closed` does |
 
 `OTARI_URL` and `OTARI_API_KEY` are what make the hooks work from a machine that
-is not the gateway's. Without them, `otari policy check` derives the URL and the
+is not the gateway's. Without them, `otari warden check` derives the URL and the
 master key from the `config.yml` it finds, normally the one `otari serve` was
 started with, so on the gateway's own machine nothing needs exporting. `--url`
 and `--api-key` on the command itself override both.
@@ -236,7 +236,7 @@ run concurrently and aggregate. Field reference in [docs/gates.md](docs/gates.md
 
 ## API
 
-Mounted under `/api/v1/plugins/agent-gates/policy-checks`:
+Mounted under `/api/v1/plugins/warden/policy-checks`:
 
 | Method and path | Auth | Purpose |
 | --- | --- | --- |
@@ -247,17 +247,17 @@ Mounted under `/api/v1/plugins/agent-gates/policy-checks`:
 | `GET /repos`, `/branches`, `/sessions` | operator | Grouped summaries with run counts and cost totals |
 
 Operator routes take the dashboard session cookie or the master key, like Otari's
-own management routes. The dashboard page is served at `/plugins/agent-gates/ui/`.
+own management routes. The dashboard page is served at `/plugins/warden/ui/`.
 
 ## Development
 
 ```
-git clone https://github.com/mozilla-ai/otari-agent-gates
-cd otari-agent-gates
+git clone https://github.com/njbrake/warden
+cd otari-warden
 uv sync          # installs gateway from mozilla-ai/otari main, per [tool.uv.sources]
 make lint        # ruff check + format check
 make test        # pytest, SQLite only, no Docker
-make ui          # pnpm install + build; commits land in src/otari_agent_gates/static/
+make ui          # pnpm install + build; commits land in src/otari_warden/static/
 ```
 
 Until the plugin seam ships on Otari's `main`, `uv sync` resolves a gateway that

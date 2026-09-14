@@ -23,8 +23,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from otari_agent_gates import headless, settings
-from otari_agent_gates.models import (
+from otari_warden import headless, settings
+from otari_warden.models import (
     CommandGateSpec,
     DeterministicGateSpec,
     EditedPathGateSpec,

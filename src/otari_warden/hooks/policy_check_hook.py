@@ -2,7 +2,7 @@
 """Claude Code ``Stop`` hook: block a turn that did not follow the stated rules.
 
 A thin dispatcher: reads the hook's JSON payload from stdin and hands the
-transcript path to ``otari policy check``, which does everything else against a
+transcript path to ``otari warden check``, which does everything else against a
 running ``otari serve``. This script owns only what is specific to being a Claude
 Code hook: the per-session retry cap that keeps the block-and-retry loop bounded.
 
@@ -10,7 +10,7 @@ On a non-compliant verdict it exits 2 with the violations on stderr, which Claud
 Code feeds back to the model and keeps the session going: an automatic retry
 loop with no human relaying anything. On a compliant verdict, an unconfigured
 policy, or an unreachable gateway in the default fail-open mode, it exits 0. When
-the retry cap is reached it records a ``gave_up`` marker via ``otari policy
+the retry cap is reached it records a ``gave_up`` marker via ``otari warden
 give-up`` (best-effort, never blocking) so that moment leaves a trace.
 
 Standard library only, so it can be copied to any machine that has Claude Code
@@ -38,11 +38,11 @@ Environment variables:
 - ``OTARI_POLICY_CHECK_MAX_ATTEMPTS`` (default ``3``): how many blocks one session
   may receive before the hook gives up and lets it finish.
 - ``OTARI_POLICY_CHECK_FAIL_MODE`` (``open`` default, or ``closed``): what to do
-  when ``otari policy check`` could not perform the check at all (exit code 2),
+  when ``otari warden check`` could not perform the check at all (exit code 2),
   as opposed to reporting non-compliant (exit code 1). ``open`` never blocks a
   session over a check that could not run; ``closed`` is hard enforcement.
 
-``otari policy check`` reads ``OTARI_URL`` and ``OTARI_API_KEY`` itself, so this
+``otari warden check`` reads ``OTARI_URL`` and ``OTARI_API_KEY`` itself, so this
 hook passes none of that through; they only have to be set in the environment
 Claude Code runs from. With neither set it falls back to the ``config.yml`` it
 finds, normally the one ``otari serve`` was started with, which only works on the
@@ -99,7 +99,7 @@ def main() -> int:
         completed = subprocess.run(  # noqa: S603 argv list, never shell=True
             [
                 otari_binary,
-                "policy",
+                "warden",
                 "check",
                 policy_name,
                 "--claude-transcript",
@@ -116,7 +116,7 @@ def main() -> int:
         _warn(f"otari CLI not found ({otari_binary!r}), skipping")
         return 0
     except subprocess.TimeoutExpired:
-        return _handle_could_not_check(state_path, attempts, fail_mode, "otari policy check timed out")
+        return _handle_could_not_check(state_path, attempts, fail_mode, "otari warden check timed out")
 
     body = _decode_json(completed.stdout)
 
@@ -132,7 +132,7 @@ def main() -> int:
         return 2
 
     detail = (body or {}).get("error") if isinstance(body, dict) else completed.stderr.strip()
-    return _handle_could_not_check(state_path, attempts, fail_mode, detail or "otari policy check failed")
+    return _handle_could_not_check(state_path, attempts, fail_mode, detail or "otari warden check failed")
 
 
 def _status_line(body: Any, policy_name: str) -> str:
@@ -160,7 +160,7 @@ def _record_give_up(policy_name: str, session_id: str) -> None:
     otari_binary = os.environ.get("OTARI_CLI_PATH", "otari")
     try:
         subprocess.run(  # noqa: S603 argv list, never shell=True
-            [otari_binary, "policy", "give-up", policy_name, "--session-id", session_id],
+            [otari_binary, "warden", "give-up", policy_name, "--session-id", session_id],
             capture_output=True,
             text=True,
             timeout=10,

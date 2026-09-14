@@ -1,12 +1,12 @@
 [plugin]
-name = "agent-gates"
+name = "warden"
 version = "0.1.0"
 description = "Checks a coding agent's turn against a repo's stated rules, from a Claude Code Stop hook."
-package = "otari_agent_gates"
+package = "otari_warden"
 plugin_api = 1
 modes = ["standalone"]
-homepage = "https://github.com/mozilla-ai/otari-agent-gates"
-getting_started = "https://github.com/mozilla-ai/otari-agent-gates#quick-start"
+homepage = "https://github.com/njbrake/warden"
+getting_started = "https://github.com/njbrake/warden#quick-start"
 contributes = ["routes", "cli", "migrations", "ui", "traffic"]
 config_keys = ["traffic"]
 
@@ -17,7 +17,7 @@ description = "Cap on one subscription-backend judge call, in seconds."
 
 [[plugin.pages]]
 id = "gates"
-label = "Agent gates"
+label = "Warden"
 path = "static"
 section = "build"
 parent = "tools"

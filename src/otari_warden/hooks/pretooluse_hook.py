@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Claude Code ``PreToolUse`` hook: deny a Bash call that matches a banned command gate.
 
-A thin dispatcher: forwards the hook's JSON payload on stdin to ``otari policy
+A thin dispatcher: forwards the hook's JSON payload on stdin to ``otari warden
 pretooluse``, which reads every ``must_not_run`` command gate from the discovered
 ``.otari-gates.yml`` and denies a match with that gate's own message. One
 declaration then serves both the Stop-hook backstop and this prospective block.
@@ -47,7 +47,7 @@ def main() -> int:
     otari_binary = os.environ.get("OTARI_CLI_PATH", "otari")
     try:
         completed = subprocess.run(  # noqa: S603 argv list, never shell=True
-            [otari_binary, "policy", "pretooluse"],
+            [otari_binary, "warden", "pretooluse"],
             input=payload,
             capture_output=True,
             text=True,

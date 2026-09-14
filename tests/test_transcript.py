@@ -1,4 +1,4 @@
-"""Unit tests for `otari_agent_gates.transcript`: current-turn extraction from a Claude Code JSONL transcript."""
+"""Unit tests for `otari_warden.transcript`: current-turn extraction from a Claude Code JSONL transcript."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from otari_agent_gates import transcript as claude_transcript
+from otari_warden import transcript as claude_transcript
 
 
 def _write_transcript(tmp_path: Path, entries: list[dict[str, Any]]) -> str:

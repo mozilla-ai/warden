@@ -24,15 +24,15 @@ from typing import TYPE_CHECKING, Any
 
 from gateway.plugins.api import RequestDecision, ToolCallDecision, logger
 
-from otari_agent_gates import settings
-from otari_agent_gates.models import CommandGateSpec, EditedPathGateSpec, PolicyCheckSpec
-from otari_agent_gates.service import (
+from otari_warden import settings
+from otari_warden.models import CommandGateSpec, EditedPathGateSpec, PolicyCheckSpec
+from otari_warden.service import (
     ExecutedCommand,
     _command_gate_failed,
     _edited_path_gate_failed,
     path_matches_any_glob,
 )
-from otari_agent_gates.transcript import strip_inert_shell_regions
+from otari_warden.transcript import strip_inert_shell_regions
 
 if TYPE_CHECKING:
     from gateway.plugins.api import RequestEvent, ToolCallEvent, Turn
@@ -99,7 +99,7 @@ class _PathsAwareCommandGate:
         return _command_gate_failed(gate.model_copy(update={"paths": None}), commands, edited)
 
 
-class AgentGatesObserver:
+class WardenObserver:
     """The traffic observer ``register`` adds when the config names something to check."""
 
     def __init__(self) -> None:
@@ -174,12 +174,12 @@ async def _load_stored_policy(name: str) -> PolicyCheckSpec | None:
     try:
         from gateway.core.database import create_session
 
-        from otari_agent_gates.service import get_stored_policy_spec
+        from otari_warden.service import get_stored_policy_spec
 
         async with create_session() as db:
             return await get_stored_policy_spec(db, name)
     except Exception as error:  # noqa: BLE001 the seam fences this too, but say why in our own words
-        logger.warning("agent-gates: stored policy %r unavailable for traffic checks: %s", name, error)
+        logger.warning("warden: stored policy %r unavailable for traffic checks: %s", name, error)
         return None
 
 

@@ -1,7 +1,7 @@
 """Route behavior over a SQLite database, with Otari's auth dependencies overridden.
 
 The plugin's routers are mounted on a bare FastAPI app the way Otari mounts them,
-under ``/api/v1/plugins/agent-gates``. The schema comes from the plugin's own
+under ``/api/v1/plugins/warden``. The schema comes from the plugin's own
 migration chain, so a column the ORM expects and the migration lacks fails here.
 """
 
@@ -21,17 +21,17 @@ from gateway.core.config import GatewayConfig
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
-import otari_agent_gates
-from otari_agent_gates.routes import operator_router, router
+import otari_warden
+from otari_warden.routes import operator_router, router
 
-API = "/api/v1/plugins/agent-gates/policy-checks"
+API = "/api/v1/plugins/warden/policy-checks"
 
 
 @pytest.fixture
 def client(tmp_path: Path) -> Iterator[TestClient]:
     database = tmp_path / "routes.db"
     alembic_cfg = Config()
-    alembic_cfg.set_main_option("script_location", str(Path(otari_agent_gates.__file__).parent / "migrations"))
+    alembic_cfg.set_main_option("script_location", str(Path(otari_warden.__file__).parent / "migrations"))
     alembic_cfg.set_main_option("sqlalchemy.url", f"sqlite:///{database}")
     alembic_cfg.attributes["configure_logger"] = False
     command.upgrade(alembic_cfg, "head")
@@ -47,8 +47,8 @@ def client(tmp_path: Path) -> Iterator[TestClient]:
 
     app = FastAPI()
     api = APIRouter(prefix="/api/v1")
-    api.include_router(router, prefix="/plugins/agent-gates")
-    api.include_router(operator_router, prefix="/plugins/agent-gates")
+    api.include_router(router, prefix="/plugins/warden")
+    api.include_router(operator_router, prefix="/plugins/warden")
     app.include_router(api)
     app.dependency_overrides[get_db] = _db
     app.dependency_overrides[get_config] = lambda: GatewayConfig()

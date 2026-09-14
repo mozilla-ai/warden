@@ -15,9 +15,9 @@ from gateway.plugins.api import (
     Turn,
 )
 
-from otari_agent_gates import settings
-from otari_agent_gates.models import PolicyCheckSpec
-from otari_agent_gates.observer import AgentGatesObserver, _path_variants
+from otari_warden import settings
+from otari_warden.models import PolicyCheckSpec
+from otari_warden.observer import WardenObserver, _path_variants
 
 CALLER = Caller(api_key_id="k", user_id="u", workspace_id="w", organization_id="o")
 
@@ -64,7 +64,7 @@ def _bash(call_id: str, command: str) -> ToolCall:
 
 @pytest.mark.asyncio
 async def test_a_turn_with_no_tool_calls_is_not_judged() -> None:
-    observer = AgentGatesObserver()
+    observer = WardenObserver()
 
     assert await observer.on_request(RequestEvent(CALLER, _conversation(Turn(text="hi")))) is None
     assert await observer.on_request(RequestEvent(CALLER, _conversation(None))) is None
@@ -72,7 +72,7 @@ async def test_a_turn_with_no_tool_calls_is_not_judged() -> None:
 
 @pytest.mark.asyncio
 async def test_a_force_push_that_ran_fires_the_gate() -> None:
-    observer = AgentGatesObserver()
+    observer = WardenObserver()
     turn = Turn(
         text="",
         tool_calls=(_bash("c1", "git push --force origin main"),),
@@ -91,7 +91,7 @@ async def test_a_force_push_that_ran_fires_the_gate() -> None:
 
 @pytest.mark.asyncio
 async def test_a_call_with_no_result_never_ran() -> None:
-    observer = AgentGatesObserver()
+    observer = WardenObserver()
     turn = Turn(text="", tool_calls=(_bash("c1", "git push --force origin main"),), results=())
 
     decision = await observer.on_request(RequestEvent(CALLER, _conversation(turn)))
@@ -103,7 +103,7 @@ async def test_a_call_with_no_result_never_ran() -> None:
 
 @pytest.mark.asyncio
 async def test_paths_conditions_match_on_path_suffixes() -> None:
-    observer = AgentGatesObserver()
+    observer = WardenObserver()
     edit = ToolCall(id="e1", name="Edit", arguments={"file_path": "/home/dev/repo/src/app.py"})
     unrelated = Turn(text="", tool_calls=(edit, _bash("c1", "ls")), results=(ToolResult("c1", "a b"),))
     tested = Turn(
@@ -121,7 +121,7 @@ async def test_paths_conditions_match_on_path_suffixes() -> None:
 
 @pytest.mark.asyncio
 async def test_an_edited_path_gate_sees_absolute_paths() -> None:
-    observer = AgentGatesObserver()
+    observer = WardenObserver()
     turn = Turn(text="", tool_calls=(ToolCall("e1", "Write", {"file_path": "/repo/CLAUDE.md", "content": "x"}),))
 
     decision = await observer.on_request(RequestEvent(CALLER, _conversation(turn)))
@@ -132,7 +132,7 @@ async def test_an_edited_path_gate_sees_absolute_paths() -> None:
 
 @pytest.mark.asyncio
 async def test_a_proposed_force_push_is_denied_and_other_calls_pass() -> None:
-    observer = AgentGatesObserver()
+    observer = WardenObserver()
     conversation = _conversation(None)
 
     denied = await observer.on_tool_call(ToolCallEvent(CALLER, conversation, _bash("n1", "git push --force")))
@@ -147,7 +147,7 @@ async def test_a_proposed_force_push_is_denied_and_other_calls_pass() -> None:
 
 @pytest.mark.asyncio
 async def test_quoted_data_does_not_trigger_a_deny() -> None:
-    observer = AgentGatesObserver()
+    observer = WardenObserver()
 
     decision = await observer.on_tool_call(
         ToolCallEvent(CALLER, _conversation(None), _bash("n1", "echo 'never run git push --force'"))
@@ -159,7 +159,7 @@ async def test_quoted_data_does_not_trigger_a_deny() -> None:
 @pytest.mark.asyncio
 async def test_nothing_configured_means_nothing_checked() -> None:
     settings.configure({})
-    observer = AgentGatesObserver()
+    observer = WardenObserver()
     turn = Turn(text="", tool_calls=(_bash("c1", "git push --force"),), results=(ToolResult("c1", "ok"),))
 
     assert await observer.on_request(RequestEvent(CALLER, _conversation(turn))) is None
@@ -177,8 +177,8 @@ async def test_a_stored_policy_is_read_and_cached(monkeypatch: pytest.MonkeyPatc
         loads.append(name)
         return PolicyCheckSpec.model_validate({"gates": GATES[:1]})
 
-    monkeypatch.setattr("otari_agent_gates.observer._load_stored_policy", fake_load)
-    observer = AgentGatesObserver()
+    monkeypatch.setattr("otari_warden.observer._load_stored_policy", fake_load)
+    observer = WardenObserver()
     turn = Turn(text="", tool_calls=(_bash("c1", "git push --force"),), results=(ToolResult("c1", "ok"),))
 
     first = await observer.on_request(RequestEvent(CALLER, _conversation(turn)))

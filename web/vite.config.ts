@@ -4,10 +4,10 @@ import react from "@vitejs/plugin-react"
 import { defineConfig, type Plugin } from "vite"
 
 // The gateway serves this bundle from the plugin's package directory at
-// /plugins/agent-gates/ui/, so the build lands inside the Python package and
+// /plugins/warden/ui/, so the build lands inside the Python package and
 // every asset URL is rooted there.
 const outDir = fileURLToPath(
-  new URL("../src/otari_agent_gates/static", import.meta.url),
+  new URL("../src/otari_warden/static", import.meta.url),
 )
 
 // `pnpm dev` serves only the SPA; API calls are proxied to a running gateway.
@@ -32,7 +32,7 @@ const dashboardStylesheet: Plugin = {
 }
 
 export default defineConfig({
-  base: "/plugins/agent-gates/ui/",
+  base: "/plugins/warden/ui/",
   plugins: [react(), tailwindcss(), dashboardStylesheet],
   server: {
     proxy: {

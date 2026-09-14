@@ -15,7 +15,7 @@ function activeTab(pathname: string): string {
   return match?.to ?? "/"
 }
 
-// The dashboard frames this page under its own "Agent gates" title, so the
+// The dashboard frames this page under its own "Warden" title, so the
 // page carries no title of its own: a row of tabs, then the surface. <main>
 // is the scroll container and the column inside it repeats the dashboard's
 // own content column, so a band that bleeds measures the same width here.

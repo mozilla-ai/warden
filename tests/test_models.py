@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
-from otari_agent_gates.models import (
+from otari_warden.models import (
     CommandGateSpec,
     DeterministicGateSpec,
     EditedPathGateSpec,

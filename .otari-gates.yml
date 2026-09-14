@@ -26,9 +26,9 @@ gates:
     message: "Run `pnpm --dir web run lint` after changing the UI source."
   - type: edited_path
     name: static-bundle-not-hand-edited
-    pattern: "src/otari_agent_gates/static/"
+    pattern: "src/otari_warden/static/"
     mode: must_not_edit
-    message: "Do not hand-edit src/otari_agent_gates/static/; it is built from web/ by `make ui`."
+    message: "Do not hand-edit src/otari_warden/static/; it is built from web/ by `make ui`."
   - type: edited_path
     name: shipped-migration-not-edited
     pattern: "migrations/versions/0001_initial\\.py$"
@@ -37,7 +37,7 @@ gates:
   - type: llm_judge
     name: hooks-stay-stdlib-only
     judge_backend: subscription
-    rules: "If a file under src/otari_agent_gates/hooks/ is modified, the diff adds no import of a package outside the Python standard library (no gateway, otari_agent_gates, pydantic, yaml, or similar)."
+    rules: "If a file under src/otari_warden/hooks/ is modified, the diff adds no import of a package outside the Python standard library (no gateway, otari_warden, pydantic, yaml, or similar)."
   - type: llm_judge
     name: comments-non-narrative
     judge_backend: subscription

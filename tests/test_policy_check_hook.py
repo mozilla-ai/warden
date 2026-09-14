@@ -2,9 +2,9 @@
 
 Loaded from its file path (it is a standalone script, not part of the `gateway`
 package) via the same pattern as `tests/unit/test_code_execution_conformance_script.py`.
-`main()`'s only external call - `subprocess.run(["otari", "policy", "check", ...])` -
+`main()`'s only external call - `subprocess.run(["otari", "warden", "check", ...])` -
 is monkeypatched throughout; no real `otari` invocation happens here. Transcript
-extraction now lives in `otari_agent_gates.transcript` and is tested there.
+extraction now lives in `otari_warden.transcript` and is tested there.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from typing import Any
 
 import pytest
 
-_SCRIPT_PATH = Path(__file__).resolve().parents[1] / "src" / "otari_agent_gates" / "hooks" / "policy_check_hook.py"
+_SCRIPT_PATH = Path(__file__).resolve().parents[1] / "src" / "otari_warden" / "hooks" / "policy_check_hook.py"
 
 
 def _load() -> ModuleType:
@@ -66,7 +66,7 @@ def test_main_rechecks_a_stop_flagged_stop_hook_active(tmp_path: Path, monkeypat
     monkeypatch.setattr(sys, "stdin", _stdin_json(payload))
     assert hook.main() == 0
     assert len(calls) == 1
-    assert calls[0][1:4] == ["policy", "check", "p"]
+    assert calls[0][1:4] == ["warden", "check", "p"]
 
 
 def test_main_missing_policy_name_exits_zero(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -84,7 +84,7 @@ def test_main_gives_up_after_max_attempts(tmp_path: Path, monkeypatch: pytest.Mo
     monkeypatch.setenv("OTARI_POLICY_NAME", "p")
     monkeypatch.setattr(hook.tempfile, "gettempdir", lambda: str(tmp_path))
 
-    # `otari policy check` is never called once the attempt cap is reached, but a give-up
+    # `otari warden check` is never called once the attempt cap is reached, but a give-up
     # marker is - the one call that should happen here, not the real check.
     calls: list[list[str]] = []
 
@@ -100,7 +100,7 @@ def test_main_gives_up_after_max_attempts(tmp_path: Path, monkeypatch: pytest.Mo
     assert hook.main() == 0
     assert not state_path.exists()
     assert len(calls) == 1
-    assert calls[0][1:4] == ["policy", "give-up", "p"]
+    assert calls[0][1:4] == ["warden", "give-up", "p"]
     assert calls[0][-2:] == ["--session-id", "s3"]
 
 

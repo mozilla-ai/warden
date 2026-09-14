@@ -1,4 +1,4 @@
-"""The ``otari policy`` command group.
+"""The ``otari warden`` command group.
 
 ``check`` and ``give-up`` are HTTP clients against a running ``otari serve``:
 extraction happens here, on the machine that holds the transcript, and every
@@ -22,16 +22,16 @@ import yaml
 from gateway.plugins.api import load_config
 from pydantic import ValidationError
 
-from otari_agent_gates.models import GATES_FILENAME, CommandGateSpec, PolicyCheckSpec
+from otari_warden.models import GATES_FILENAME, CommandGateSpec, PolicyCheckSpec
 
-API_PREFIX = "/api/v1/plugins/agent-gates/policy-checks"
+API_PREFIX = "/api/v1/plugins/warden/policy-checks"
 
 _GATES_FILE_SEARCH_DEPTH = 20
 
 
 @click.group()
-def policy() -> None:
-    """Check and author Agent Gates policies."""
+def warden() -> None:
+    """Check and author Warden policies."""
 
 
 class GatesFileError(ValueError):
@@ -215,7 +215,7 @@ _API_KEY_OPTION = click.option(
 )
 
 
-@policy.command(name="check")
+@warden.command(name="check")
 @click.argument("policy_name")
 @click.option(
     "--claude-transcript",
@@ -263,7 +263,7 @@ def policy_check(
     The gateway comes from --url or OTARI_URL and the key from --api-key or OTARI_API_KEY,
     which is how a developer on another machine points at a shared gateway with an ordinary
     Otari API key. With neither set, both default from the config.yml the CLI finds, so
-    `otari serve` then `otari policy check` on the gateway's own machine needs no flags.
+    `otari serve` then `otari warden check` on the gateway's own machine needs no flags.
 
     Exit codes: 0 compliant; 1 non-compliant; 2 could not check at all (unreachable
     gateway, unknown policy, a malformed gates file, or on_unavailable=block on an
@@ -273,7 +273,7 @@ def policy_check(
     import urllib.parse
     import urllib.request
 
-    from otari_agent_gates.transcript import (
+    from otari_warden.transcript import (
         extract_edited_paths,
         extract_excerpt,
         extract_executed_commands,
@@ -349,7 +349,7 @@ def policy_check(
         raise SystemExit(1)
 
 
-@policy.command(name="give-up")
+@warden.command(name="give-up")
 @click.argument("policy_name")
 @click.option(
     "--session-id",
@@ -416,7 +416,7 @@ def preventable_gates(spec: PolicyCheckSpec) -> list[CommandGateSpec]:
 
 def first_violated_gate(command: str, gates: list[CommandGateSpec]) -> CommandGateSpec | None:
     """The first gate whose pattern matches ``command`` after the same masking the Stop hook applies."""
-    from otari_agent_gates.transcript import strip_inert_shell_regions
+    from otari_warden.transcript import strip_inert_shell_regions
 
     masked = strip_inert_shell_regions(command)
     for gate in gates:
@@ -448,7 +448,7 @@ def evaluate_pretooluse(payload: Any, gates_file: Path | None) -> CommandGateSpe
     return first_violated_gate(command, gates)
 
 
-@policy.command(name="pretooluse")
+@warden.command(name="pretooluse")
 @click.option(
     "--gates-file",
     "gates_file_path",
@@ -562,7 +562,7 @@ _DECOMPOSITION_PROMPT_TEMPLATE = (
 
 def decompose_plan(plan_text: str, *, max_criteria: int, claude_binary: str | None = None) -> list[Criterion]:
     """Ask the local ``claude`` CLI to decompose ``plan_text`` into acceptance criteria."""
-    from otari_agent_gates import headless
+    from otari_warden import headless
 
     prompt = _DECOMPOSITION_PROMPT_TEMPLATE.format(max_criteria=max_criteria, plan_text=plan_text)
     last_error: str | None = None
@@ -703,7 +703,7 @@ def render_policy_yaml(
     return yaml.safe_dump(spec, sort_keys=False, default_flow_style=False)
 
 
-@policy.command(name="generate")
+@warden.command(name="generate")
 @click.argument("plan_path", type=click.Path(exists=True, dir_okay=False))
 @click.option("--judge-backend", type=click.Choice(["provider", "subscription"]), default="subscription")
 @click.option("--judge-model", default=None, help="Required (and only meaningful) with --judge-backend provider.")
@@ -725,7 +725,7 @@ def policy_generate(
     """Decompose PLAN_PATH into acceptance-criteria gates, via the local `claude` CLI.
 
     Local-only: writes a repo's own .otari-gates.yml, meant to be committed at the repo
-    root and discovered by `otari policy check`. Each criterion is classified toward the
+    root and discovered by `otari warden check`. Each criterion is classified toward the
     narrowest gate shape that fits it unconditionally; most still render as llm_judge.
     """
     if judge_backend == "provider" and not judge_model:

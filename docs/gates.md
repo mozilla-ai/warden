@@ -17,13 +17,13 @@ still shows that nothing was verified.
 
 ## Where a policy comes from
 
-- **A repo's own `.otari-gates.yml`.** `otari policy check` walks upward from the
+- **A repo's own `.otari-gates.yml`.** `otari warden check` walks upward from the
   current directory to find it, the way `git` finds `.git`, and sends it inline.
   The policy name on the command line becomes only the label recorded in history;
   the gateway looks nothing up. The file is reviewed in the PR that changes it and
   works the same for anyone who clones the repo.
 - **A stored policy**, created in the dashboard's Gates page or through
-  `POST /api/v1/plugins/agent-gates/policy-checks/policies`. The fallback for a
+  `POST /api/v1/plugins/warden/policy-checks/policies`. The fallback for a
   check with no repo to carry a file, or an operator-managed policy meant to apply
   across many repos. Read fresh from the database on every check.
 
@@ -122,7 +122,7 @@ immediately and `on_unavailable` decides the outcome.
 
 ## Generating a gates file
 
-`otari policy generate plan.md` asks the local `claude` CLI to decompose a plan
+`otari warden generate plan.md` asks the local `claude` CLI to decompose a plan
 into narrow, checkable criteria and writes `.otari-gates.yml` in the current
 directory (`--yaml-out -` prints it). Each criterion is classified toward the
 narrowest mechanical shape that fits unconditionally; anything uncertain becomes
